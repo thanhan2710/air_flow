@@ -1,5 +1,0 @@
-﻿Dataset,Thuật_Toán,Accuracy,Precision,F1_Score
-dataset_malwares.csv,Deep Learning (NN),0.8646,0.8645,0.8646
-dataset_test.csv,Deep Learning (NN),0.5,0.25,0.3333
-drebin-215-dataset-5560malware-9476-benign.csv,Deep Learning (NN),0.99,0.9899,0.99
-final(2).csv,Deep Learning (NN),1.0,1.0,1.0
