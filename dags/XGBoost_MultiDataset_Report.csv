@@ -1,0 +1,14 @@
+﻿Dataset,Thuật_Toán,Accuracy,Precision,F1_Score,FPR,ROC_AUC
+Android_Malware_Syscalls.csv,XGBoost,1.0,1.0,1.0,0.0,1.0
+C2_Malicious_Domains.csv,XGBoost,0.9783,0.9784,0.9783,0.0291,0.9983
+ClaMP_Integrated_PE_Malware.csv,XGBoost,0.9875,0.9875,0.9875,0.0161,0.9991
+ClaMP_Raw_PE_Malware.csv,XGBoost,0.9792,0.9792,0.9792,0.0161,0.9986
+dataset_malwares.csv,XGBoost,0.985,0.9852,0.9851,0.017,0.9987
+drebin-215-dataset-5560malware-9476-benign.csv,XGBoost,0.958,0.9597,0.9585,0.0388,0.9924
+final(2).csv,XGBoost,0.9613,0.9615,0.9613,0.0195,0.9944
+Mobile_Smishing_Threats.csv,XGBoost,0.899,0.8977,0.898,0.0581,0.9623
+NSL_KDD_Network_Intrusion.csv,XGBoost,0.9927,0.9931,0.9928,0.0006,0.899
+PE_Header_MalwareData.csv,XGBoost,0.9907,0.9907,0.9907,0.0072,0.9989
+Phishing_Websites_Detection.csv,XGBoost,0.947,0.9484,0.9469,0.0232,0.9904
+Ransomware_Multiclass_Dataset.csv,XGBoost,0.9306,0.9861,0.9558,0.0101,0.9966
+TUANDROMD_Android_Malware.csv,XGBoost,0.9398,0.9387,0.9389,0.028,0.9817

@@ -1,0 +1,14 @@
+﻿Dataset,Thuật_Toán,Accuracy,Precision,F1_Score,FPR,ROC_AUC
+Android_Malware_Syscalls.csv,Random Forest,1.0,1.0,1.0,0.0,1.0
+C2_Malicious_Domains.csv,Random Forest,0.9777,0.9778,0.9777,0.0304,0.9982
+ClaMP_Integrated_PE_Malware.csv,Random Forest,0.9866,0.9866,0.9866,0.0201,0.9984
+ClaMP_Raw_PE_Malware.csv,Random Forest,0.9792,0.9792,0.9792,0.0241,0.9985
+dataset_malwares.csv,Random Forest,0.99,0.99,0.99,0.0315,0.9982
+drebin-215-dataset-5560malware-9476-benign.csv,Random Forest,0.969,0.9697,0.9684,0.0027,0.9911
+final(2).csv,Random Forest,0.9707,0.9708,0.9706,0.0151,0.9953
+Mobile_Smishing_Threats.csv,Random Forest,0.902,0.901,0.8999,0.043,0.9629
+NSL_KDD_Network_Intrusion.csv,Random Forest,0.996,0.9957,0.9958,0.0004,0.902
+PE_Header_MalwareData.csv,Random Forest,0.989,0.9891,0.989,0.011,0.9991
+Phishing_Websites_Detection.csv,Random Forest,0.9179,0.9245,0.9174,0.0182,0.9873
+Ransomware_Multiclass_Dataset.csv,Random Forest,0.9167,0.9726,0.9433,0.0148,0.9933
+TUANDROMD_Android_Malware.csv,Random Forest,0.9398,0.9453,0.9414,0.0561,0.9795

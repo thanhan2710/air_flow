@@ -1,0 +1,38 @@
+# Airflow logs and temporary files
+logs/
+*.log
+data/
+
+# Environment files
+.env
+
+# OS / Temporary files
+df*
+docker.yaml
+.DS_Store
+Thumbs.db
+
+# Python bytecode & cache
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+.venv/
+
+# Large datasets & raw/processed data
+dags/datasets/
+dags/processed_datasets/
+dags/malware_samples/
+
+# Model binaries & Pickle files (can be large)
+*.pkl
+dags/models/*.pkl
+
+# IDE files
+.idea/
+.vscode/
+*.swp
+*.swo
