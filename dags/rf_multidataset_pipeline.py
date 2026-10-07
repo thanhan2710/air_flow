@@ -39,7 +39,7 @@ def rf_multidataset_pipeline():
         target_candidates = [
             'malware', 'classification', 'label', 'classe', 'class', 
             'attack_type', 'result', 'prediction', 'smishing label', 
-            'legitimate', 'malware_type'
+            'legitimate', 'malware_type', 'gr', 'class_label'
         ]
         leaky_cols = {
             'family', 'threats', 'threat_type', 'threat', 'spam label', 
@@ -47,7 +47,7 @@ def rf_multidataset_pipeline():
             'millisecond', 'time', 'timestamp', 'ipaddress', 'seddaddress', 
             'expaddress', 'clusters', 'dnsrecordtype', 'creationdate', 'lastupdatedate'
         }
-        id_cols = {'md5', 'name', 'id', 'ip', 'hash'}
+        id_cols = {'md5', 'name', 'id', 'ip', 'hash', 'id'}
         
         for path in file_paths:
             filename = os.path.basename(path)
@@ -93,21 +93,30 @@ def rf_multidataset_pipeline():
                 target = df[target_col].copy()
                 
                 # Xử lý text: TF-IDF nâng cấp 200 features + bigrams
-                if 'message' in features.columns:
+                text_col = None
+                for candidate in ['message', 'query', 'sentence', 'text', 'payload', 'url']:
+                    for col in features.columns:
+                        if str(col).strip().lower() == candidate:
+                            text_col = col
+                            break
+                    if text_col:
+                        break
+
+                if text_col is not None:
                     tfidf = TfidfVectorizer(
                         max_features=200, 
                         stop_words='english',
                         ngram_range=(1, 2),       # Bắt cụm từ 2 từ: "click here", "free prize"
                         sublinear_tf=True          # Giảm ảnh hưởng của từ xuất hiện quá nhiều
                     )
-                    tfidf_matrix = tfidf.fit_transform(features['message'].astype(str)).toarray()
+                    tfidf_matrix = tfidf.fit_transform(features[text_col].astype(str)).toarray()
                     n_feats = tfidf_matrix.shape[1]
                     text_m = pd.DataFrame(
                         tfidf_matrix,
                         columns=[f"tfidf_{i}" for i in range(n_feats)],
                         index=features.index
                     )
-                    features = pd.concat([features.drop(columns=['message']), text_m], axis=1)
+                    features = pd.concat([features.drop(columns=[text_col]), text_m], axis=1)
                 
                 # Mã hóa categorical: One-Hot cho ≤20 giá trị, factorize cho >20
                 cat_cols = [col for col in features.columns if features[col].dtype == 'object']

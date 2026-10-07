@@ -4,3 +4,7 @@ tensorflow
 xgboost
 pandas
 yfinance
+boto3
+matplotlib
+seaborn
+joblib

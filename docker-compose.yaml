@@ -126,13 +126,15 @@ services:
       "
 
   malware-scanner:
-    image: airflow_docker-airflow-worker:latest
+    build: .
     container_name: malware_scanner_api
     command: python /opt/airflow/dags/scanner_api.py
     ports:
       - "5050:5050"
     volumes:
       - ${AIRFLOW_PROJ_DIR:-.}/dags:/opt/airflow/dags
+    depends_on:
+      - minio
     restart: always
 
   redis:

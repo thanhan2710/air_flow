@@ -100,22 +100,37 @@ cd air_flow
 cp .env.example .env
 ```
 
-### 3. Khởi chạy toàn bộ Cụm Dịch vụ với Docker Compose
+### 3. Build & Khởi chạy toàn bộ Cụm Dịch vụ với Docker Compose
 ```bash
-# Khởi động Airflow, Postgres, Redis, Celery Worker, MinIO
+# Build custom Airflow image (bao gồm tất cả dependencies)
+docker compose build
+
+# Khởi động Airflow, Postgres, Redis, Celery Worker, MinIO, Scanner API
 docker compose up -d
 ```
 
-### 4. Truy cập các Giao diện Quản trị
-Sau khi các container hoàn tất khởi động (khoảng 1-2 phút):
+> **Lưu ý**: Lần chạy đầu tiên sẽ mất khoảng 3-5 phút để cài đặt dependencies và khởi tạo database.
+
+### 4. Huấn luyện mô hình phát hiện mã độc (Lần đầu tiên)
+Sau khi các container đã khởi động thành công, bạn cần huấn luyện mô hình để Scanner API hoạt động:
+```bash
+# Chạy script huấn luyện bộ 3 mô hình (Random Forest, XGBoost, MLP) bên trong container
+docker compose exec airflow-worker python /opt/airflow/dags/train_detector_models.py
+```
+> Script này sẽ tạo ra các file model (`.pkl`) trong `dags/models/` để Scanner API sử dụng cho việc phân tích mã độc thời gian thực.
+
+### 5. Truy cập các Giao diện Quản trị
+Sau khi các container hoàn tất khởi động (khoảng 2-3 phút):
 
 | Dịch vụ | Địa chỉ URL | Tài khoản mặc định | Chức năng |
 | :--- | :--- | :--- | :--- |
-| **Airflow Web UI** | `http://localhost:8080` | `airflow` / `airflow` (hoặc cấu hình trong `.env`) | Giám sát và kích hoạt các DAGs, xem Graph View, Grid View, Logs |
+| **Airflow Web UI** | `http://localhost:8081` | `airflow` / `airflow` (hoặc cấu hình trong `.env`) | Giám sát và kích hoạt các DAGs, xem Graph View, Grid View, Logs |
+| **Shield-AI Dashboard** | `http://localhost:5050` | *(Tự do)* | Giao diện đánh giá mô hình & quét mã độc thời gian thực |
 | **MinIO Console** | `http://localhost:9001` | `minioadmin` / `minioadmin` | Trực quan hóa kho lưu trữ Object Storage, xem model & report buckets |
-| **Flower Dashboard** | `http://localhost:5555` | *(Không yêu cầu)* | Giám sát trạng thái hoạt động của cụm Celery Workers |
-| **Malware Scanner API** | `http://localhost:5050` | *(REST API)* | API tiếp nhận file thực thi và phân tích mã độc thời gian thực |
-| **Web SOC Dashboard** | `http://localhost:9001/browser/malware-evaluation/index.html` hoặc mở trực tiếp `docs/index.html` | *(Tự do)* | Giao diện phân tích đa chỉ số đồ họa cao |
+| **Flower Dashboard** | `http://localhost:5555` | *(Không yêu cầu, cần thêm `--profile flower`)* | Giám sát trạng thái hoạt động của cụm Celery Workers |
+| **Malware Scanner API** | `http://localhost:5050/api/health` | *(REST API)* | API tiếp nhận file thực thi và phân tích mã độc thời gian thực |
+| **Web SOC Dashboard (MinIO)** | `http://localhost:9000/malware-evaluation/dashboard.html` | *(Tự do)* | Giao diện phân tích đa chỉ số đồ họa cao (sau khi chạy pipeline) |
+
 
 ---
 
@@ -132,12 +147,27 @@ Sau khi các container hoàn tất khởi động (khoảng 1-2 phút):
 
 ---
 
+## 📊 Danh mục Tập dữ liệu & Phạm vi Giám sát (Datasets Catalog)
+
+Hệ thống được mở rộng và huấn luyện trên **19 tập dữ liệu an ninh mạng** toàn diện, bao gồm **~50MB dữ liệu mới bổ sung** để lấp đầy các góc khuất an ninh:
+
+| Tập dữ liệu mới bổ sung (~50MB) | Dung lượng | Số mẫu | Phạm vi an ninh khắc phục / Bổ sung |
+| :--- | :---: | :---: | :--- |
+| **`CIC_MalMem2022_Obfuscated.csv`** | **15.66 MB** | 58,596 | **Mã độc bộ nhớ & Không file (Fileless / Obfuscated Malware)**: Giám định memory dumps, thread ẩn, DLL injection, callbacks, VAD. |
+| **`APA_DDoS_Traffic.csv`** | **20.72 MB** | 151,200 | **Tấn công từ chối dịch vụ phân tán (DDoS)**: Nhận diện luồng tấn công tầng ứng dụng và bất thường băng thông. |
+| **`Ransomware_PE_Headers.csv`** | **5.08 MB** | 2,157 | **Cấu trúc PE chuyên sâu Mã độc tống tiền**: Phân tích 1024 đặc trưng byte & header nhị phân của các chủng Ransomware. |
+| **`SQL_Injection_Payloads.csv`** | **2.18 MB** | 30,919 | **Tấn công Web & Khai thác CSDL**: Nhận diện vector tiêm mã SQL Injection, bypass WAF. |
+| **`XSS_Attack_Vectors.csv`** | **1.53 MB** | 13,686 | **Tấn công Cross-Site Scripting (XSS)**: Phân tích kịch bản độc hại phía client, né tránh bộ lọc HTML/JS. |
+| **`Phishing_Legitimate_URLs.csv`** | **1.30 MB** | 10,000 | **Tên miền lừa đảo & Phishing URLs**: 50 chỉ số cấu trúc định danh website độc hại. |
+
+---
+
 ## 📊 Kết quả Thực nghiệm Tổng kết
 
-Hệ thống đã thực nghiệm đánh giá trên **13 tập dữ liệu an ninh mạng** tiêu chuẩn:
+Đánh giá tổng hợp trên toàn bộ các tập dữ liệu an ninh mạng:
 
 | Mô hình | Điểm mạnh nổi bật | F1-Score trung bình | FPR (False Positive Rate) | Khuyến nghị ứng dụng |
-| :--- | :--- | :--- | :--- | :--- |
+| :--- | :--- | :---: | :---: | :--- |
 | **Random Forest** | Ổn định, chống overfitting cực tốt, không nhạy cảm ngoại lai | **~98.2%** | **Rất thấp (< 0.015)** | Phù hợp triển khai hệ thống lọc ban đầu (Primary Gatekeeper) |
 | **XGBoost** | Tốc độ phân loại cực nhanh, tối ưu gradient boosting | **~98.7%** | **Thấp (< 0.012)** | Phù hợp hệ thống phát hiện mối đe dọa biên (Edge Detection) |
 | **Multi-Layer Perceptron (MLP)** | Nắm bắt quan hệ phi tuyến phức tạp trong đặc trưng nhị phân | **~97.5%** | **Trung bình (~ 0.022)** | Phù hợp phân tích sâu các mẫu mã độc đa hình phức tạp |

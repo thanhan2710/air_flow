@@ -36,3 +36,9 @@ dags/models/*.pkl
 .vscode/
 *.swp
 *.swo
+
+# Scanner runtime data (uploaded files & history)
+dags/uploaded_scans/
+
+# CSV reports generated at runtime
+dags/malware_analysis_results.csv

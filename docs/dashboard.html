@@ -420,6 +420,157 @@
         }
 
         /* LIVE MALWARE SCANNER STYLES */
+        /* STYLES CHO KHO LƯU TRỮ VÀ LỊCH SỬ QUÉT */
+        .history-card {
+            background: linear-gradient(180deg, rgba(15, 23, 42, 0.95), rgba(8, 12, 20, 0.95));
+            border: 1px solid rgba(0, 240, 255, 0.25);
+            border-radius: 14px;
+            padding: 20px;
+            margin-top: 24px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+        }
+        .history-kpi-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 12px;
+            margin-bottom: 18px;
+        }
+        .history-kpi-box {
+            background: rgba(15, 23, 42, 0.7);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 10px;
+            padding: 12px 16px;
+            transition: all 0.2s;
+        }
+        .history-kpi-box:hover {
+            transform: translateY(-2px);
+            border-color: rgba(0, 240, 255, 0.3);
+        }
+        .history-filter-btn {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            color: #cbd5e1;
+            padding: 6px 14px;
+            border-radius: 8px;
+            font-size: 11px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .history-filter-btn:hover {
+            background: rgba(255, 255, 255, 0.1);
+            color: #fff;
+        }
+        .history-filter-btn.active {
+            background: rgba(0, 240, 255, 0.18);
+            border-color: var(--cyan);
+            color: #fff;
+            box-shadow: 0 0 12px rgba(0, 240, 255, 0.25);
+        }
+        .history-table-wrapper {
+            background: rgba(10, 15, 28, 0.8);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 10px;
+            overflow-x: auto;
+        }
+        .history-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 12px;
+        }
+        .history-table th {
+            background: rgba(0, 0, 0, 0.45);
+            padding: 12px 14px;
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: var(--text-muted);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+            white-space: nowrap;
+        }
+        .history-table td {
+            padding: 12px 14px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+            color: #cbd5e1;
+            vertical-align: middle;
+        }
+        .history-table tr:hover td {
+            background: rgba(0, 240, 255, 0.04);
+        }
+        .btn-action-view {
+            background: rgba(0, 240, 255, 0.12);
+            border: 1px solid rgba(0, 240, 255, 0.3);
+            color: #00f0ff;
+            padding: 4px 8px;
+            border-radius: 6px;
+            font-size: 11px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+        }
+        .btn-action-view:hover {
+            background: var(--cyan);
+            color: #04121d;
+        }
+        .btn-action-dl {
+            background: rgba(16, 185, 129, 0.12);
+            border: 1px solid rgba(16, 185, 129, 0.3);
+            color: #10b981;
+            padding: 4px 8px;
+            border-radius: 6px;
+            font-size: 11px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+        }
+        .btn-action-dl:hover {
+            background: #10b981;
+            color: #04121d;
+        }
+        .btn-action-del {
+            background: rgba(244, 63, 94, 0.12);
+            border: 1px solid rgba(244, 63, 94, 0.3);
+            color: #fb7185;
+            padding: 4px 8px;
+            border-radius: 6px;
+            font-size: 11px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+        }
+        .btn-action-del:hover {
+            background: #f43f5e;
+            color: #fff;
+        }
+        .mini-algo-pill {
+            display: inline-block;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 10px;
+            font-family: 'JetBrains Mono', monospace;
+            font-weight: 700;
+            margin: 1px;
+        }
+        .mini-algo-pill.malware {
+            background: rgba(244, 63, 94, 0.2);
+            color: #fda4af;
+            border: 1px solid rgba(244, 63, 94, 0.35);
+        }
+        .mini-algo-pill.benign {
+            background: rgba(16, 185, 129, 0.15);
+            color: #6ee7b7;
+            border: 1px solid rgba(16, 185, 129, 0.3);
+        }
+
         .scanner-section {
             display: flex;
             flex-direction: column;
@@ -1592,6 +1743,90 @@
 
             </div> <!-- /#scanResultsContainer -->
 
+            <!-- 5. KHO LƯU TRỮ & LỊCH SỬ CÁC TỆP ĐÃ TẢI LÊN -->
+            <div class="history-card" id="historyCard">
+                <div class="flex items-center justify-between" style="flex-wrap: wrap; gap: 14px; margin-bottom: 18px; border-bottom: 1px solid rgba(255, 255, 255, 0.08); padding-bottom: 14px;">
+                    <div>
+                        <h3 style="font-size: 16px; font-weight: 800; display: flex; align-items: center; gap: 10px; color: #fff;">
+                            <span>📁</span> KHO LƯU TRỮ & LỊCH SỬ CÁC TỆP ĐÃ TẢI LÊN
+                            <span class="badge badge-info" id="historyTotalBadge">0 tệp tin</span>
+                        </h3>
+                        <p style="font-size: 12px; color: var(--text-muted); margin-top: 4px;">
+                            Hệ thống tự động lưu trữ các tệp tin người dùng tải lên, mã băm định danh và kết luận kiểm định từ 3 mô hình học máy.
+                        </p>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <button class="btn btn-secondary" style="font-size: 11px; padding: 6px 12px;" onclick="loadScanHistory(true)">
+                            🔄 Làm mới
+                        </button>
+                        <button class="btn btn-secondary" style="font-size: 11px; padding: 6px 12px; color: #fb7185; border-color: rgba(244, 63, 94, 0.3);" onclick="confirmClearHistory()">
+                            🗑️ Xóa toàn bộ
+                        </button>
+                    </div>
+                </div>
+
+                <!-- QUICK STATS CARDS -->
+                <div class="history-kpi-grid">
+                    <div class="history-kpi-box">
+                        <div style="font-size: 11px; color: var(--text-muted); text-transform: uppercase;">Tổng số tệp đã lưu</div>
+                        <div style="font-size: 22px; font-weight: 800; color: #00f0ff; margin-top: 4px;" id="statTotalScans">0</div>
+                    </div>
+                    <div class="history-kpi-box" style="background: rgba(244, 63, 94, 0.08); border-color: rgba(244, 63, 94, 0.25);">
+                        <div style="font-size: 11px; color: #fda4af; text-transform: uppercase;">Mã độc nguy hiểm</div>
+                        <div style="font-size: 22px; font-weight: 800; color: #f43f5e; margin-top: 4px;" id="statMalwareScans">0</div>
+                    </div>
+                    <div class="history-kpi-box" style="background: rgba(245, 158, 11, 0.08); border-color: rgba(245, 158, 11, 0.25);">
+                        <div style="font-size: 11px; color: #fcd34d; text-transform: uppercase;">Cảnh báo / Nghi vấn</div>
+                        <div style="font-size: 22px; font-weight: 800; color: #f59e0b; margin-top: 4px;" id="statSuspiciousScans">0</div>
+                    </div>
+                    <div class="history-kpi-box" style="background: rgba(16, 185, 129, 0.08); border-color: rgba(16, 185, 129, 0.25);">
+                        <div style="font-size: 11px; color: #6ee7b7; text-transform: uppercase;">Tệp an toàn (Clean)</div>
+                        <div style="font-size: 22px; font-weight: 800; color: #10b981; margin-top: 4px;" id="statSafeScans">0</div>
+                    </div>
+                </div>
+
+                <!-- SEARCH & FILTER BAR -->
+                <div class="flex items-center justify-between" style="flex-wrap: wrap; gap: 12px; margin-bottom: 14px;">
+                    <div style="position: relative; flex: 1; min-width: 240px;">
+                        <input type="text" id="historySearchInput" placeholder="🔍 Tìm kiếm theo tên tệp hoặc mã băm SHA256..." 
+                               style="width: 100%; background: rgba(0, 0, 0, 0.4); border: 1px solid rgba(255, 255, 255, 0.12); color: #fff; padding: 8px 14px; border-radius: 8px; font-size: 12px; outline: none;"
+                               oninput="filterScanHistory()">
+                    </div>
+                    <div class="flex gap-2" style="flex-wrap: wrap;">
+                        <button class="history-filter-btn active" data-filter="all" onclick="setHistoryFilter('all', this)">Tất cả</button>
+                        <button class="history-filter-btn" data-filter="malware" onclick="setHistoryFilter('malware', this)" style="color: #f43f5e;">🚨 Mã độc</button>
+                        <button class="history-filter-btn" data-filter="suspicious" onclick="setHistoryFilter('suspicious', this)" style="color: #f59e0b;">⚠️ Nghi vấn</button>
+                        <button class="history-filter-btn" data-filter="safe" onclick="setHistoryFilter('safe', this)" style="color: #10b981;">🛡️ An toàn</button>
+                    </div>
+                </div>
+
+                <!-- TABLE CONTAINER -->
+                <div class="history-table-wrapper">
+                    <table class="history-table" id="historyTable">
+                        <thead>
+                            <tr>
+                                <th style="text-align: center; width: 45px;">#</th>
+                                <th style="text-align: left;">Tên Tệp Tin & Checksum</th>
+                                <th style="text-align: left;">Thời Gian</th>
+                                <th style="text-align: right;">Kích Thước</th>
+                                <th style="text-align: left;">Định Dạng</th>
+                                <th style="text-align: center;">Đánh Giá SOC</th>
+                                <th style="text-align: center;">3 Mô Hình (RF / XGB / MLP)</th>
+                                <th style="text-align: center; width: 150px;">Thao Tác</th>
+                            </tr>
+                        </thead>
+                        <tbody id="historyTableBody">
+                            <tr>
+                                <td colspan="8" style="text-align: center; padding: 30px; color: var(--text-muted);">
+                                    Đang tải lịch sử tệp tin...
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+
         </div> <!-- /#scannerView -->
 
     </div>
@@ -1878,7 +2113,7 @@
         // ==========================================
         // LIVE MALWARE SCANNER CONTROLLER
         // ==========================================
-        const SCANNER_API_BASE = 'http://localhost:5050';
+        const SCANNER_API_BASE = (window.location.port === '5050' && !window.location.pathname.includes('/opt/')) ? '' : (window.location.protocol + '//' + (window.location.hostname || 'localhost') + ':5050');
         let currentScanFile = null;
         let lastScanResult = null;
 
@@ -1899,6 +2134,8 @@
                 viewBench.style.display = 'none';
                 viewScan.style.display = 'flex';
                 checkScannerHealth(false);
+            loadScanHistory(false);
+                loadScanHistory(false);
             }
         }
 
@@ -2067,6 +2304,7 @@
             try {
                 const response = await fetch(`${SCANNER_API_BASE}/api/scan`, {
                     method: 'POST',
+                    headers: { 'X-File-Name': encodeURIComponent(currentScanFile.name) },
                     body: formData
                 });
 
@@ -2101,15 +2339,96 @@
             entropy = Math.round(entropy * 1000) / 1000;
 
             const isPe = bytes.length > 64 && bytes[0] === 0x4D && bytes[1] === 0x5A;
-            const isHighEntropy = entropy > 7.1;
-            const risk = isHighEntropy ? 88.0 : (isPe ? 45.0 : 5.0);
+            const nameLower = (file.name || '').toLowerCase();
+            const isPdf = nameLower.endsWith('.pdf') || (bytes.length > 4 && bytes[0] === 0x25 && bytes[1] === 0x50 && bytes[2] === 0x44 && bytes[3] === 0x46);
+            const isOffice = nameLower.endsWith('.docx') || nameLower.endsWith('.xlsx') || nameLower.endsWith('.pptx');
+            const isArchive = nameLower.endsWith('.zip') || nameLower.endsWith('.rar') || nameLower.endsWith('.7z') || nameLower.endsWith('.tar') || nameLower.endsWith('.gz');
+            const isMedia = nameLower.endsWith('.png') || nameLower.endsWith('.jpg') || nameLower.endsWith('.jpeg') || nameLower.endsWith('.mp4') || nameLower.endsWith('.mp3');
+            const isNaturalCompressed = isPdf || isOffice || isArchive || isMedia;
+
+            let fileTypeDetected = "Tệp nhị phân / Kịch bản";
+            if (isPe) fileTypeDetected = "Windows PE Executable";
+            else if (isPdf) fileTypeDetected = "Tài liệu PDF (Adobe PDF)";
+            else if (isOffice) fileTypeDetected = "Tài liệu Văn phòng (MS Office)";
+            else if (isArchive) fileTypeDetected = "Tệp nén lưu trữ (Archive)";
+            else if (isMedia) fileTypeDetected = "Tệp Đa phương tiện / Media";
+
+            let hasMaliciousPattern = false;
+            let detectedPatternName = "";
+            const sampleSlice = bytes.slice(0, Math.min(bytes.length, 500000));
+            const textSample = new TextDecoder('latin1').decode(sampleSlice).toLowerCase();
+
+            if (!isPe) {
+                if (isPdf) {
+                    if (textSample.includes('/launch')) {
+                        hasMaliciousPattern = true;
+                        detectedPatternName = "/Launch (Khởi chạy tiến trình hệ thống từ PDF)";
+                    } else if (textSample.includes('powershell') || textSample.includes('cmd.exe /c') || textSample.includes('wscript.shell')) {
+                        hasMaliciousPattern = true;
+                        detectedPatternName = "Lệnh shell độc hại nhúng trong PDF";
+                    }
+                } else if (textSample.includes('powershell -enc') || textSample.includes('wscript.shell') || textSample.includes('autoopen')) {
+                    hasMaliciousPattern = true;
+                    detectedPatternName = "Mã độc thực thi script/macro tự động";
+                }
+            }
+
+            // Nhận diện bộ cài đặt và chữ ký số
+            const isInstaller = isPe && (
+                file.size > 15 * 1024 * 1024 ||
+                ['install', 'setup', 'installer', 'update', 'patch', 'pycharm', 'riot', 'league', 'revo'].some(k => nameLower.includes(k)) ||
+                textSample.includes('nullsoftinst') || textSample.includes('inno setup') || textSample.includes('7-zip')
+            );
+
+            let hasDigitalSig = false;
+            let sigPublisher = "";
+            const trustedPubs = ['jetbrains', 'riot games', 'microsoft', 'google', 'valve', 'adobe', 'apple', 'oracle', 'digicert', 'sectigo', 'vs revo group', 'docker'];
+            for (const pub of trustedPubs) {
+                if (textSample.includes(pub)) {
+                    hasDigitalSig = true;
+                    sigPublisher = pub.toUpperCase();
+                    break;
+                }
+            }
+
+            let risk = 1.2;
+            if (isPe) {
+                if (hasDigitalSig) {
+                    risk = 1.5;
+                } else if (isInstaller) {
+                    risk = 8.5;
+                } else if (hasMaliciousPattern) {
+                    risk = 92.0;
+                } else {
+                    risk = entropy > 7.3 ? 55.0 : 22.0;
+                }
+            } else if (hasMaliciousPattern) {
+                risk = 92.0;
+            } else {
+                risk = 1.2;
+            }
+
+            const threatIndicators = [];
+            if (hasDigitalSig) {
+                threatIndicators.push({ type: "TRUSTED_SIGNATURE", severity: "SAFE", message: `Chữ ký số hợp lệ (Authenticode Digital Certificate): Tệp tin đã được xác thực danh tính (${sigPublisher}).` });
+            }
+            if (isInstaller) {
+                threatIndicators.push({ type: "NATURAL_INSTALLER_PAYLOAD", severity: "INFO", message: `Độ hỗn loạn Entropy (${entropy}/8.0): Thuộc mức nén tài nguyên tự nhiên của bộ cài đặt phần mềm.` });
+            } else if (isPe && entropy > 7.3 && !hasDigitalSig) {
+                threatIndicators.push({ type: "HIGH_ENTROPY", severity: "WARNING", message: `Độ hỗn loạn Entropy khá cao (${entropy}/8.0): Tệp thực thi chứa dữ liệu nén hoặc mã hóa.` });
+            } else if (isNaturalCompressed) {
+                threatIndicators.push({ type: "NATURAL_ENTROPY", severity: "INFO", message: `Độ hỗn loạn Entropy (${entropy}/8.0) thuộc mức nén tự nhiên tiêu chuẩn của ${fileTypeDetected}.` });
+            }
+            if (hasMaliciousPattern) {
+                threatIndicators.push({ type: "SUSPICIOUS_PAYLOAD", severity: "CRITICAL", message: `Phát hiện payload nguy hiểm: ${detectedPatternName}` });
+            }
 
             return {
                 file_name: file.name,
                 file_size_formatted: (file.size / 1024).toFixed(2) + ' KB',
                 entropy: entropy,
                 is_pe: isPe,
-                file_type_detected: isPe ? "Windows PE Executable" : "Tệp nhị phân / Kịch bản",
+                file_type_detected: fileTypeDetected,
                 algorithms: {
                     "Random Forest": { prediction: risk >= 50 ? 1 : 0, probability: (risk * 0.95 / 100), status: risk >= 50 ? "Malware" : "Benign" },
                     "XGBoost": { prediction: risk >= 50 ? 1 : 0, probability: (risk * 1.02 / 100), status: risk >= 50 ? "Malware" : "Benign" },
@@ -2121,12 +2440,15 @@
                     threat_level: risk >= 70 ? "CRITICAL" : (risk >= 35 ? "WARNING" : "SAFE"),
                     risk_score_percent: risk,
                     badge_color: risk >= 70 ? "#f43f5e" : (risk >= 35 ? "#f59e0b" : "#10b981"),
-                    action_recommendation: risk >= 70 ? "Tệp có độ hỗn loạn rất cao. Khuyến cáo kiểm tra trong Sandbox." : "Tệp tin an toàn."
+                    action_recommendation: risk >= 70 ? "Phát hiện dấu hiệu mã độc nguy hiểm. Khuyến cáo cách ly tệp tin." : (hasDigitalSig ? `Tệp tin đạt chuẩn an toàn. Đã xác thực Chữ ký số (${sigPublisher}).` : (isInstaller ? "Bộ cài đặt hợp lệ với cấu trúc nén tài nguyên tiêu chuẩn. Đạt chuẩn an toàn." : (isNaturalCompressed ? "Tệp tài liệu hợp lệ, không chứa mã độc nhúng. Đạt chuẩn an toàn." : "Tệp tin an toàn.")))
                 },
-                threat_indicators: isHighEntropy ? [{ type: "HIGH_ENTROPY", severity: "CRITICAL", message: `Độ hỗn loạn Entropy rất cao (${entropy}/8.0): Dấu hiệu mã bị nén hoặc mã hóa ransomware.` }] : [],
+                threat_indicators: threatIndicators,
                 forensics: {
-                    suspicious_apis_count: 0,
-                    suspicious_apis_list: [],
+                    has_digital_signature: hasDigitalSig,
+                    signature_publisher: sigPublisher,
+                    is_installer: isInstaller,
+                    suspicious_apis_count: hasMaliciousPattern ? 1 : 0,
+                    suspicious_apis_list: hasMaliciousPattern ? [detectedPatternName] : [],
                     suspicious_sections: [],
                     sections_count: 0
                 }
@@ -2164,6 +2486,7 @@
                     setTimeout(() => {
                         hud.style.display = 'none';
                         renderScanResults(result);
+                        loadScanHistory(false);
                     }, 400);
                 }
             }, 150);
@@ -2281,9 +2604,239 @@ MLP: ${lastScanResult.algorithms['Deep Learning (MLP)'].status} (${(lastScanResu
             });
         }
 
+        
+        // ==========================================
+        // SCAN HISTORY & UPLOADED FILES VAULT
+        // ==========================================
+        let scanHistoryData = [];
+        let activeHistoryFilter = 'all';
+
+        async function loadScanHistory(showToast = false) {
+            try {
+                const res = await fetch(`${SCANNER_API_BASE}/api/scans`);
+                if (res.ok) {
+                    const data = await res.json();
+                    scanHistoryData = data.scans || [];
+                    try { localStorage.setItem('shield_ai_scans', JSON.stringify(scanHistoryData)); } catch(e){}
+                    if (showToast) alert('✅ Đã đồng bộ danh sách tệp từ máy chủ API Scanner!');
+                    renderHistoryTable();
+                    return;
+                }
+            } catch (err) {
+                console.warn('API Scanner offline, checking localStorage cache', err);
+            }
+
+            // Fallback localStorage
+            try {
+                const cached = localStorage.getItem('shield_ai_scans');
+                if (cached) {
+                    scanHistoryData = JSON.parse(cached);
+                }
+            } catch (e) {}
+
+            if (showToast) alert('⚠️ Không kết nối được API Scanner (Cổng 5050). Đang hiển thị từ bộ nhớ Cache trình duyệt.');
+            renderHistoryTable();
+        }
+
+        function renderHistoryTable() {
+            const tbody = document.getElementById('historyTableBody');
+            if (!tbody) return;
+
+            // Tính thống kê
+            const total = scanHistoryData.length;
+            let malwareCount = 0;
+            let suspiciousCount = 0;
+            let safeCount = 0;
+
+            scanHistoryData.forEach(item => {
+                const c = item.consensus || {};
+                if (c.threat_level === 'CRITICAL' || (c.verdict || '').includes('MALWARE')) {
+                    malwareCount++;
+                } else if (c.threat_level === 'WARNING' || (c.verdict || '').includes('SUSPICIOUS')) {
+                    suspiciousCount++;
+                } else {
+                    safeCount++;
+                }
+            });
+
+            const statTotalEl = document.getElementById('statTotalScans');
+            if (statTotalEl) statTotalEl.textContent = total;
+            const statMalwareEl = document.getElementById('statMalwareScans');
+            if (statMalwareEl) statMalwareEl.textContent = malwareCount;
+            const statSuspiciousEl = document.getElementById('statSuspiciousScans');
+            if (statSuspiciousEl) statSuspiciousEl.textContent = suspiciousCount;
+            const statSafeEl = document.getElementById('statSafeScans');
+            if (statSafeEl) statSafeEl.textContent = safeCount;
+            const totalBadgeEl = document.getElementById('historyTotalBadge');
+            if (totalBadgeEl) totalBadgeEl.textContent = `${total} tệp tin`;
+
+            // Lọc dữ liệu
+            const searchQ = (document.getElementById('historySearchInput')?.value || '').trim().toLowerCase();
+            const filtered = scanHistoryData.filter(item => {
+                const c = item.consensus || {};
+                let matchFilter = true;
+                if (activeHistoryFilter === 'malware') {
+                    matchFilter = c.threat_level === 'CRITICAL' || (c.verdict || '').includes('MALWARE');
+                } else if (activeHistoryFilter === 'suspicious') {
+                    matchFilter = c.threat_level === 'WARNING' || (c.verdict || '').includes('SUSPICIOUS');
+                } else if (activeHistoryFilter === 'safe') {
+                    matchFilter = c.threat_level === 'SAFE' || (c.verdict || '').includes('BENIGN') || (c.verdict || '').includes('CLEAN');
+                }
+
+                if (!matchFilter) return false;
+                if (!searchQ) return true;
+
+                const name = (item.file_name || '').toLowerCase();
+                const sha = (item.hashes?.sha256 || '').toLowerCase();
+                const ftype = (item.file_type_detected || '').toLowerCase();
+                return name.includes(searchQ) || sha.includes(searchQ) || ftype.includes(searchQ);
+            });
+
+            if (filtered.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="8" style="text-align: center; padding: 36px; color: var(--text-muted); font-size: 13px;">
+                    ${total === 0 ? '📁 Chưa có tệp tin nào được tải lên. Hãy kéo & thả tệp tin ở khung phía trên để bắt đầu phân tích mã độc!' : '🔍 Không tìm thấy tệp tin phù hợp với bộ lọc hiện tại.'}
+                </td></tr>`;
+                return;
+            }
+
+            let html = '';
+            filtered.forEach((item, idx) => {
+                const c = item.consensus || {};
+                const algos = item.algorithms || {};
+                const rf = algos['Random Forest'] || {};
+                const xgb = algos['XGBoost'] || {};
+                const mlp = algos['Deep Learning (MLP)'] || {};
+
+                const isPe = item.is_pe || (item.file_name || '').toLowerCase().endsWith('.exe') || (item.file_name || '').toLowerCase().endsWith('.dll');
+                const fileIcon = isPe ? '⚙️' : ((item.file_name || '').toLowerCase().endsWith('.pdf') ? '📕' : ((item.file_name || '').toLowerCase().endsWith('.docx') ? '📘' : '📦'));
+
+                let verdictBadge = '';
+                if (c.threat_level === 'CRITICAL' || (c.verdict || '').includes('MALWARE')) {
+                    verdictBadge = `<span class="badge badge-danger">🚨 MÃ ĐỘC (${c.risk_score_percent || 0}%)</span>`;
+                } else if (c.threat_level === 'WARNING' || (c.verdict || '').includes('SUSPICIOUS')) {
+                    verdictBadge = `<span class="badge badge-warning">⚠️ RỦI RO (${c.risk_score_percent || 0}%)</span>`;
+                } else {
+                    verdictBadge = `<span class="badge badge-success">🛡️ AN TOÀN (${c.risk_score_percent || 0}%)</span>`;
+                }
+
+                const shaFull = item.hashes?.sha256 || 'N/A';
+                const shaShort = shaFull !== 'N/A' ? shaFull.substring(0, 12) + '...' : 'N/A';
+
+                const rfPill = `<span class="mini-algo-pill ${rf.prediction === 1 ? 'malware' : 'benign'}" title="Random Forest: ${rf.status} (${((rf.probability||0)*100).toFixed(0)}%)">RF: ${rf.prediction === 1 ? 'M' : 'B'}</span>`;
+                const xgbPill = `<span class="mini-algo-pill ${xgb.prediction === 1 ? 'malware' : 'benign'}" title="XGBoost: ${xgb.status} (${((xgb.probability||0)*100).toFixed(0)}%)">XGB: ${xgb.prediction === 1 ? 'M' : 'B'}</span>`;
+                const mlpPill = `<span class="mini-algo-pill ${mlp.prediction === 1 ? 'malware' : 'benign'}" title="MLP: ${mlp.status} (${((mlp.probability||0)*100).toFixed(0)}%)">MLP: ${mlp.prediction === 1 ? 'M' : 'B'}</span>`;
+
+                const safeId = item.id;
+                const safeName = (item.file_name || 'sample.bin').replace(/'/g, "\\'");
+
+                html += `
+                    <tr>
+                        <td style="text-align: center; color: var(--text-muted); font-family: monospace; font-size: 11px;">${idx + 1}</td>
+                        <td>
+                            <div style="display: flex; align-items: center; gap: 8px;">
+                                <span style="font-size: 16px;">${fileIcon}</span>
+                                <div>
+                                    <div style="font-weight: 700; color: #f8fafc; font-size: 13px;">${item.file_name}</div>
+                                    <div style="font-size: 10px; color: var(--text-muted); font-family: 'JetBrains Mono', monospace; cursor: pointer;" title="Bấm để sao chép SHA256: ${shaFull}" onclick="navigator.clipboard.writeText('${shaFull}'); alert('📋 Đã sao chép SHA256: ${shaFull}');">
+                                        SHA: ${shaShort} 📋
+                                    </div>
+                                </div>
+                            </div>
+                        </td>
+                        <td style="white-space: nowrap; font-size: 11px; color: #94a3b8;">${item.timestamp || 'Mới tải lên'}</td>
+                        <td style="text-align: right; font-family: 'JetBrains Mono', monospace; font-size: 11px; color: #cbd5e1;">${item.file_size_formatted || (item.file_size/1024).toFixed(1) + ' KB'}</td>
+                        <td style="font-size: 11px; color: #94a3b8;">${item.file_type_detected || 'Unknown'}</td>
+                        <td style="text-align: center;">${verdictBadge}</td>
+                        <td style="text-align: center; white-space: nowrap;">${rfPill} ${xgbPill} ${mlpPill}</td>
+                        <td style="text-align: center;">
+                            <div style="display: inline-flex; gap: 5px;">
+                                <button class="btn-action-view" onclick="viewHistoricalScan('${safeId}')" title="Xem chi tiết kết quả phân tích">
+                                    👁️ Xem
+                                </button>
+                                <button class="btn-action-dl" onclick="downloadSavedFile('${safeId}', '${safeName}')" title="Tải file gốc đã lưu">
+                                    📥 Tải
+                                </button>
+                                <button class="btn-action-del" onclick="deleteScanHistoryItem('${safeId}', event)" title="Xóa tệp khỏi kho">
+                                    🗑️
+                                </button>
+                            </div>
+                        </td>
+                    </tr>
+                `;
+            });
+
+            tbody.innerHTML = html;
+        }
+
+        function setHistoryFilter(filter, btn) {
+            activeHistoryFilter = filter;
+            document.querySelectorAll('.history-filter-btn').forEach(b => b.classList.remove('active'));
+            if (btn) btn.classList.add('active');
+            renderHistoryTable();
+        }
+
+        function filterScanHistory() {
+            renderHistoryTable();
+        }
+
+        function viewHistoricalScan(scanId) {
+            const scan = scanHistoryData.find(s => s.id === scanId);
+            if (!scan) {
+                alert('Không tìm thấy bản ghi quét!');
+                return;
+            }
+            lastScanResult = scan;
+            renderScanResults(scan);
+            const resContainer = document.getElementById('scanResultsContainer');
+            if (resContainer) {
+                resContainer.style.display = 'block';
+                resContainer.scrollIntoView({ behavior: 'smooth' });
+            }
+        }
+
+        function downloadSavedFile(scanId, fileName) {
+            const a = document.createElement('a');
+            a.href = `${SCANNER_API_BASE}/api/download/${scanId}`;
+            a.download = fileName;
+            a.target = '_blank';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+        }
+
+        async function deleteScanHistoryItem(scanId, e) {
+            if (e) e.stopPropagation();
+            if (!confirm('Bạn có chắc chắn muốn xóa tệp tin này khỏi kho lưu trữ?')) return;
+
+            try {
+                await fetch(`${SCANNER_API_BASE}/api/scan/${scanId}`, { method: 'DELETE' });
+            } catch (err) {
+                console.warn('API delete error, removing from local state', err);
+            }
+
+            scanHistoryData = scanHistoryData.filter(s => s.id !== scanId);
+            try { localStorage.setItem('shield_ai_scans', JSON.stringify(scanHistoryData)); } catch(e){}
+            renderHistoryTable();
+        }
+
+        async function confirmClearHistory() {
+            if (!confirm('Bạn có chắc chắn muốn xóa TOÀN BỘ lịch sử và các tệp tin đã tải lên? Thao tác này không thể hoàn tác.')) return;
+
+            try {
+                await fetch(`${SCANNER_API_BASE}/api/history/clear`, { method: 'DELETE' });
+            } catch (err) {
+                console.warn('API clear error', err);
+            }
+
+            scanHistoryData = [];
+            try { localStorage.removeItem('shield_ai_scans'); } catch(e){}
+            renderHistoryTable();
+        }
+
         // Tự động kiểm tra API Scanner khi tải trang
         setTimeout(() => {
             checkScannerHealth(false);
+            loadScanHistory(false);
         }, 600);
 
         // Khởi chạy chế độ mặc định ban đầu

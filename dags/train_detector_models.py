@@ -1,8 +1,9 @@
+# -*- coding: utf-8 -*-
 """
 train_detector_models.py
-Huấn luyện và đóng gói 3 mô hình học máy phát hiện mã độc (Random Forest, XGBoost, MLP)
-từ tập dữ liệu cấu trúc PE Malware thực tế (dataset_malwares.csv).
-Mô hình sau khi huấn luyện được lưu vào dags/models/ để phục vụ suy luận thời gian thực.
+Huan luyen va dong goi 3 mo hinh hoc may phat hien ma doc (Random Forest, XGBoost, MLP)
+tu tap du lieu cau truc PE Malware thuc te (dataset_malwares.csv).
+Mo hinh sau khi huan luyen duoc luu vao dags/models/ de phuc vu suy luan thoi gian thuc.
 """
 
 import os
@@ -11,6 +12,12 @@ import json
 import joblib
 import pandas as pd
 import numpy as np
+
+# Cau hinh ho tro ma hoa UTF-8 tren moi moi truong Windows/Linux
+if hasattr(sys.stdout, 'reconfigure'):
+    sys.stdout.reconfigure(encoding='utf-8', errors='replace')
+if hasattr(sys.stderr, 'reconfigure'):
+    sys.stderr.reconfigure(encoding='utf-8', errors='replace')
 
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
@@ -23,7 +30,7 @@ try:
     HAS_XGB = True
 except ImportError:
     HAS_XGB = False
-    print("[CẢNH BÁO] Chưa cài đặt thư viện xgboost, sẽ dùng GradientBoostingClassifier thay thế nếu cần.")
+    print("[CANH BAO] Chua cai dat thu vien xgboost, se dung GradientBoostingClassifier thay the neu can.")
     from sklearn.ensemble import GradientBoostingClassifier
 
 
@@ -34,25 +41,25 @@ def train_and_export_models():
     os.makedirs(model_dir, exist_ok=True)
 
     if not os.path.exists(dataset_path):
-        print(f"[LỖI] Không tìm thấy file dữ liệu tại {dataset_path}")
+        print(f"[LOI] Khong tim thay file du lieu tai: {dataset_path}")
         return False
 
     print("=" * 70)
-    print("🚀 BẮT ĐẦU QUÁ TRÌNH HUẤN LUYỆN BỘ 3 MÔ HÌNH PHÁT HIỆN MÃ ĐỘC PE")
-    print(f"📁 Nguồn dữ liệu: {dataset_path}")
+    print("[BAT DAU] QUÁ TRÌNH HUẤN LUYỆN BỘ 3 MÔ HÌNH PHÁT HIỆN MÃ ĐỘC PE")
+    print(f"[NGUON DU LIEU] {dataset_path}")
     print("=" * 70)
 
-    # 1. Đọc dữ liệu
+    # 1. Doc du lieu
     df = pd.read_csv(dataset_path)
-    print(f">> Nạp thành công {len(df)} mẫu PE với {len(df.columns)} cột đặc trưng.")
+    print(f">> Nap thanh cong {len(df):,} mau PE voi {len(df.columns)} cot dac trung.")
 
-    # 2. Tiền xử lý
+    # 2. Tien xu ly
     target_col = 'Malware'
     id_cols = ['Name']
 
     feature_cols = [c for c in df.columns if c != target_col and c not in id_cols]
     
-    # Ép kiểu số và điền giá trị thiếu bằng median
+    # Ep kieu so va dien gia tri thieu bang median
     X_df = df[feature_cols].apply(pd.to_numeric, errors='coerce')
     feature_medians = X_df.median().to_dict()
     X_df = X_df.fillna(X_df.median())
@@ -60,33 +67,33 @@ def train_and_export_models():
     y = df[target_col].astype(int).values
     X = X_df.values
 
-    # Lưu danh sách đặc trưng để phục vụ trích xuất PE thời gian thực
+    # Luu danh sach dac trung de phuc vu trich xuat PE thoi gian thuc
     feature_info = {
         "features": feature_cols,
         "feature_count": len(feature_cols),
         "medians": {k: float(v) if not np.isnan(v) else 0.0 for k, v in feature_medians.items()}
     }
 
-    # 3. Phân chia tập huấn luyện và kiểm thử (80/20)
+    # 3. Phan chia tap huan luyen va kiem thu (80/20)
     X_train, X_test, y_train, y_test = train_test_split(
         X, y, test_size=0.20, random_state=42, stratify=y
     )
 
-    # 4. Chuẩn hóa dữ liệu (Scaler)
+    # 4. Chuan hoa du lieu (Scaler)
     scaler = StandardScaler()
     X_train_scaled = scaler.fit_transform(X_train)
     X_test_scaled = scaler.transform(X_test)
 
-    # Lưu Scaler
+    # Luu Scaler
     scaler_path = os.path.join(model_dir, "pe_scaler.pkl")
     joblib.dump(scaler, scaler_path)
-    print(f">> Đã lưu Scaler chuẩn hóa: {scaler_path}")
+    print(f">> Da luu Scaler chuan hoa: {scaler_path}")
 
     results_summary = {}
 
-    # 5. Huấn luyện Mô hình 1: RANDOM FOREST CLASSIFIER
+    # 5. Huan luyen Mo hinh 1: RANDOM FOREST CLASSIFIER
     print("\n-------------------------------------------------------------")
-    print("🌲 1/3: Đang huấn luyện Random Forest Classifier...")
+    print("[1/3] [Random Forest] Dang huan luyen Random Forest Classifier...")
     rf_model = RandomForestClassifier(
         n_estimators=100,
         max_depth=25,
@@ -112,12 +119,12 @@ def train_and_export_models():
     results_summary["Random Forest"] = rf_metrics
     rf_path = os.path.join(model_dir, "rf_malware_model.pkl")
     joblib.dump(rf_model, rf_path)
-    print(f">> Đã lưu Random Forest Model: {rf_path}")
+    print(f">> Da luu Random Forest Model: {rf_path}")
     print(f"   Acc: {rf_metrics['accuracy']*100:.2f}% | F1: {rf_metrics['f1_score']*100:.2f}% | AUC: {rf_metrics['roc_auc']:.4f}")
 
-    # 6. Huấn luyện Mô hình 2: XGBOOST CLASSIFIER
+    # 6. Huan luyen Mo hinh 2: XGBOOST CLASSIFIER
     print("\n-------------------------------------------------------------")
-    print("⚡ 2/3: Đang huấn luyện XGBoost Classifier...")
+    print("[2/3] [XGBoost] Dang huan luyen XGBoost Classifier...")
     if HAS_XGB:
         xgb_model = XGBClassifier(
             n_estimators=100,
@@ -152,12 +159,12 @@ def train_and_export_models():
     results_summary["XGBoost"] = xgb_metrics
     xgb_path = os.path.join(model_dir, "xgb_malware_model.pkl")
     joblib.dump(xgb_model, xgb_path)
-    print(f">> Đã lưu XGBoost Model: {xgb_path}")
+    print(f">> Da luu XGBoost Model: {xgb_path}")
     print(f"   Acc: {xgb_metrics['accuracy']*100:.2f}% | F1: {xgb_metrics['f1_score']*100:.2f}% | AUC: {xgb_metrics['roc_auc']:.4f}")
 
-    # 7. Huấn luyện Mô hình 3: MULTI-LAYER PERCEPTRON (MLP)
+    # 7. Huan luyen Mo hinh 3: MULTI-LAYER PERCEPTRON (MLP)
     print("\n-------------------------------------------------------------")
-    print("🧠 3/3: Đang huấn luyện Deep Learning MLP Classifier...")
+    print("[3/3] [Deep MLP] Dang huan luyen Deep Learning MLP Classifier...")
     mlp_model = MLPClassifier(
         hidden_layer_sizes=(64, 32),
         activation='relu',
@@ -185,10 +192,10 @@ def train_and_export_models():
     results_summary["MLP"] = mlp_metrics
     mlp_path = os.path.join(model_dir, "mlp_malware_model.pkl")
     joblib.dump(mlp_model, mlp_path)
-    print(f">> Đã lưu MLP Model: {mlp_path}")
+    print(f">> Da luu MLP Model: {mlp_path}")
     print(f"   Acc: {mlp_metrics['accuracy']*100:.2f}% | F1: {mlp_metrics['f1_score']*100:.2f}% | AUC: {mlp_metrics['roc_auc']:.4f}")
 
-    # 8. Xuất file metadata cấu hình
+    # 8. Xuat file metadata cau hinh
     metadata = {
         "trained_date": pd.Timestamp.now().strftime("%Y-%m-%d %H:%M:%S"),
         "dataset_name": "dataset_malwares.csv",
@@ -204,7 +211,7 @@ def train_and_export_models():
         json.dump(metadata, f, indent=2, ensure_ascii=False)
 
     print("\n" + "=" * 70)
-    print(f"🎉 HOÀN TẤT HUẤN LUYỆN BỘ 3 MÔ HÌNH! Dữ liệu đã lưu tại: {model_dir}")
+    print(f"[HOAN TAT] DA HUAN LUYEN XONG BO 3 MO HINH! Luu tai: {model_dir}")
     print("=" * 70)
     return True
 
