@@ -1931,7 +1931,12 @@ def model_evaluation_dashboard():
         // ==========================================
         // LIVE MALWARE SCANNER CONTROLLER
         // ==========================================
-        const SCANNER_API_BASE = (window.location.port === '5050' && !window.location.pathname.includes('/opt/')) ? '' : (window.location.protocol + '//' + (window.location.hostname || 'localhost') + ':5050');
+        let SCANNER_API_BASE = 'http://localhost:5050';
+        if (window.location.port === '5050' && !window.location.pathname.includes('/opt/')) {{
+            SCANNER_API_BASE = '';
+        }} else if (window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1' && !window.location.hostname.includes('github.io')) {{
+            SCANNER_API_BASE = window.location.protocol + '//' + window.location.hostname + ':5050';
+        }}
         let currentScanFile = null;
         let lastScanResult = null;
 
@@ -1952,7 +1957,6 @@ def model_evaluation_dashboard():
                 viewBench.style.display = 'none';
                 viewScan.style.display = 'flex';
                 checkScannerHealth(false);
-            loadScanHistory(false);
                 loadScanHistory(false);
             }}
         }}
@@ -1961,7 +1965,11 @@ def model_evaluation_dashboard():
             const statusDot = document.getElementById('statusDot');
             const statusText = document.getElementById('statusText');
             try {{
-                const res = await fetch(`${{SCANNER_API_BASE}}/api/health`, {{ method: 'GET' }});
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 3000);
+                const res = await fetch(`${{SCANNER_API_BASE}}/api/health`, {{ method: 'GET', signal: controller.signal }});
+                clearTimeout(timeoutId);
+
                 if (res.ok) {{
                     const data = await res.json();
                     statusDot.className = 'status-dot online';
@@ -1972,7 +1980,7 @@ def model_evaluation_dashboard():
             }} catch (e) {{
                 statusDot.className = 'status-dot offline';
                 statusText.textContent = 'API Scanner: Offline (Dùng Heuristic Fallback)';
-                if (showNotification) alert('⚠️ Không thể kết nối tới http://localhost:5050/api/health. Hãy bật service: docker compose up -d malware-scanner hoặc python dags/scanner_api.py');
+                if (showNotification) alert('⚠️ Không thể kết nối tới Malware Scanner API. Đang dùng chế độ Heuristic Fallback nội bộ.');
             }}
             return false;
         }}
@@ -2419,7 +2427,11 @@ def model_evaluation_dashboard():
 
         async function loadScanHistory(showToast = false) {{
             try {{
-                const res = await fetch(`${{SCANNER_API_BASE}}/api/scans`);
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 3000);
+                const res = await fetch(`${{SCANNER_API_BASE}}/api/scans`, {{ signal: controller.signal }});
+                clearTimeout(timeoutId);
+
                 if (res.ok) {{
                     const data = await res.json();
                     scanHistoryData = data.scans || [];
@@ -2440,7 +2452,7 @@ def model_evaluation_dashboard():
                 }}
             }} catch (e) {{}}
 
-            if (showToast) alert('⚠️ Không kết nối được API Scanner (Cổng 5050). Đang hiển thị từ bộ nhớ Cache trình duyệt.');
+            if (showToast) alert('⚠️ Không kết nối được API Scanner. Đang hiển thị từ bộ nhớ Cache trình duyệt.');
             renderHistoryTable();
         }}
 
