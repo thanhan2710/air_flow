@@ -22,23 +22,18 @@ env/
 venv/
 .venv/
 
-# Large datasets & raw/processed data
-dags/datasets/
+# Intermediate runtime data & processed caches
 dags/processed_datasets/
-dags/malware_samples/
+dags/uploaded_scans/
+dags/malware_analysis_results.csv
 
-# Model binaries & Pickle files (can be large)
-*.pkl
-dags/models/*.pkl
+# Large binaries exceeding 50MB (keeps git clone light)
+dags/malware_samples/*League of Legends*
+dags/stock_rf_model.pkl
 
 # IDE files
 .idea/
 .vscode/
+dags/.idea/
 *.swp
 *.swo
-
-# Scanner runtime data (uploaded files & history)
-dags/uploaded_scans/
-
-# CSV reports generated at runtime
-dags/malware_analysis_results.csv

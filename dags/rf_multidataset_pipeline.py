@@ -92,12 +92,13 @@ def rf_multidataset_pipeline():
                 features = df.drop(columns=[c for c in cols_to_drop if c in df.columns]).copy()
                 target = df[target_col].copy()
                 
-                # Xử lý text: TF-IDF nâng cấp 200 features + bigrams
+                # Xử lý text: TF-IDF nâng cấp 200 features + bigrams (chỉ áp dụng nếu là văn bản thực sự)
                 text_col = None
                 for candidate in ['message', 'query', 'sentence', 'text', 'payload', 'url']:
                     for col in features.columns:
                         if str(col).strip().lower() == candidate:
-                            text_col = col
+                            if features[col].dtype == 'object' and features[col].astype(str).str.len().mean() > 5:
+                                text_col = col
                             break
                     if text_col:
                         break

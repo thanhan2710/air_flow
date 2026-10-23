@@ -147,18 +147,28 @@ Sau khi các container hoàn tất khởi động (khoảng 2-3 phút):
 
 ---
 
-## 📊 Danh mục Tập dữ liệu & Phạm vi Giám sát (Datasets Catalog)
+## 📊 Danh mục Tập dữ liệu & Phạm vi Giám sát (Datasets Catalog - 23 Datasets)
 
-Hệ thống được mở rộng và huấn luyện trên **19 tập dữ liệu an ninh mạng** toàn diện, bao gồm **~50MB dữ liệu mới bổ sung** để lấp đầy các góc khuất an ninh:
+Hệ thống được chuẩn hóa, đồng bộ và huấn luyện trên **23 tập dữ liệu an ninh mạng** toàn diện, giải quyết triệt để sự không khớp giữa phân hệ **Benchmark** và phân hệ **Scanner Thời Gian Thực**:
 
-| Tập dữ liệu mới bổ sung (~50MB) | Dung lượng | Số mẫu | Phạm vi an ninh khắc phục / Bổ sung |
-| :--- | :---: | :---: | :--- |
-| **`CIC_MalMem2022_Obfuscated.csv`** | **15.66 MB** | 58,596 | **Mã độc bộ nhớ & Không file (Fileless / Obfuscated Malware)**: Giám định memory dumps, thread ẩn, DLL injection, callbacks, VAD. |
-| **`APA_DDoS_Traffic.csv`** | **20.72 MB** | 151,200 | **Tấn công từ chối dịch vụ phân tán (DDoS)**: Nhận diện luồng tấn công tầng ứng dụng và bất thường băng thông. |
-| **`Ransomware_PE_Headers.csv`** | **5.08 MB** | 2,157 | **Cấu trúc PE chuyên sâu Mã độc tống tiền**: Phân tích 1024 đặc trưng byte & header nhị phân của các chủng Ransomware. |
-| **`SQL_Injection_Payloads.csv`** | **2.18 MB** | 30,919 | **Tấn công Web & Khai thác CSDL**: Nhận diện vector tiêm mã SQL Injection, bypass WAF. |
-| **`XSS_Attack_Vectors.csv`** | **1.53 MB** | 13,686 | **Tấn công Cross-Site Scripting (XSS)**: Phân tích kịch bản độc hại phía client, né tránh bộ lọc HTML/JS. |
-| **`Phishing_Legitimate_URLs.csv`** | **1.30 MB** | 10,000 | **Tên miền lừa đảo & Phishing URLs**: 50 chỉ số cấu trúc định danh website độc hại. |
+| Nhóm dữ liệu | Tập dữ liệu tiêu biểu | Số mẫu | Phạm vi an ninh khắc phục & Kết nối Scanner |
+| :--- | :--- | :---: | :--- |
+| **Mã độc Thực thi PE** | `dataset_malwares.csv`<br>`PE_Header_MalwareData.csv`<br>`ClaMP_Raw / ClaMP_Integrated.csv` | **75,000+** | Đầy đủ 77/77 đặc trưng PE Headers & Sections. Huấn luyện bộ 3 model phục vụ trực tiếp Live Scanner. |
+| **Mã độc Tài liệu PDF** | `PDF_Malware_Structural_2022.csv` | **10,000** | Bóc tách 18 chỉ thị cấu trúc PDF (`/JS`, `/Launch`, `/EmbeddedFiles`, `/OpenAction`, Streams, Entropy) với model ML chuyên biệt. |
+| **Mã độc Kịch bản Script** | `Malicious_Scripts_PowerShell_VBS.csv` | **12,000** | 18 đặc trưng phân loại script độc hại: làm mờ Base64, IEX, certutil, WScript.Shell, bypass ExecutionPolicy. |
+| **Mã độc Office & Macro** | `Office_Macro_OLE_Malware.csv` | **8,000** | 11 đặc trưng nhận diện macro VBA nguy hiểm, AutoOpen, DDE links, Shell execution trong Word/Excel. |
+| **Mã độc Tống tiền** | `Ransomware_Family_Behavior_Unified.csv`<br>`Ransomware_PE_Headers.csv`<br>`Ransomware_Multiclass_Dataset.csv` | **45,000+** | Hợp nhất hành vi Conti, LockBit, WannaCry với dữ liệu đối chứng lành tính (Benign) và 1024 byte header chuyên sâu. |
+| **Mã độc Bộ nhớ / Ẩn file** | `CIC_MalMem2022_Obfuscated.csv` | **58,596** | Giám định memory dumps, thread ẩn, DLL injection, callbacks, VAD. |
+| **An ninh Mạng & Tấn công Web** | `APA_DDoS_Traffic.csv`<br>`NSL_KDD_Network_Intrusion.csv`<br>`SQL_Injection_Payloads.csv`<br>`XSS_Attack_Vectors.csv`<br>`C2_Malicious_Domains.csv`<br>`Phishing_Legitimate_URLs.csv` | **350,000+** | Nhận diện DDoS, xâm nhập mạng, SQLi, XSS, C2 C&C servers và tên miền giả mạo (Phishing). |
+| **Mã độc Di động Android** | `Android_Malware_Syscalls.csv`<br>`drebin-215-dataset.csv`<br>`TUANDROMD_Android_Malware.csv` | **120,000+** | Giám sát quyền ứng dụng (Permissions), API Call signatures và System calls. |
+
+---
+
+## 🔬 Động cơ Kiểm định Đa Miền (Multi-Domain Scanner Engine)
+
+- **Đồng bộ 100% 77 đặc trưng PE**: Khắc phục hiện tượng khuyết 21 đặc trưng section/data directory trước đây.
+- **Suy luận Đa Định Dạng bằng Machine Learning thực thụ**: Tự động định tuyến tệp tải lên (PE Executable, PDF Document, Script Kịch bản, Office Document) vào đúng cụm mô hình đã huấn luyện từ dữ liệu tương ứng.
+- **Kho mẫu kiểm định an toàn (Safe Test Suite)**: Cung cấp sẵn các mẫu thực tế trong `dags/malware_samples/` (`revosetup.exe`, `packed_suspicious_stub.exe`, `clean_report.pdf`, `suspicious_js_sample.pdf`, `benign_admin_script.ps1`, `obfuscated_sample.ps1`) hỗ trợ kiểm thử 1-click trực tiếp qua REST API.
 
 ---
 

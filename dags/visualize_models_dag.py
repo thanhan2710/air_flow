@@ -35,10 +35,11 @@ def model_evaluation_dashboard():
         import pandas as pd
         import numpy as np
 
+        base_dir = "/opt/airflow/dags" if os.path.exists("/opt/airflow/dags") else os.path.dirname(os.path.abspath(__file__))
         report_files = [
-            "/opt/airflow/dags/XGBoost_MultiDataset_Report.csv",
-            "/opt/airflow/dags/MLP_MultiDataset_Report.csv",
-            "/opt/airflow/dags/RandomForest_MultiDataset_Report.csv"
+            os.path.join(base_dir, "XGBoost_MultiDataset_Report.csv"),
+            os.path.join(base_dir, "MLP_MultiDataset_Report.csv"),
+            os.path.join(base_dir, "RandomForest_MultiDataset_Report.csv")
         ]
 
         combined_df = pd.DataFrame()
@@ -63,7 +64,7 @@ def model_evaluation_dashboard():
                 combined_df[col] = 0.0
 
         # Lưu file tổng hợp
-        report_dir = "/opt/airflow/dags/reports"
+        report_dir = os.path.join(base_dir, "reports") if "base_dir" in locals() else ("/opt/airflow/dags/reports" if os.path.exists("/opt/airflow/dags") else os.path.join(os.path.dirname(os.path.abspath(__file__)), "reports"))
         os.makedirs(report_dir, exist_ok=True)
         combined_path = os.path.join(report_dir, "combined_model_evaluation_report.csv")
         combined_df.to_csv(combined_path, index=False, encoding='utf-8-sig')
@@ -113,7 +114,7 @@ def model_evaluation_dashboard():
         import base64
 
         df = pd.DataFrame(eval_data['records'])
-        report_dir = "/opt/airflow/dags/reports"
+        report_dir = os.path.join(base_dir, "reports") if "base_dir" in locals() else ("/opt/airflow/dags/reports" if os.path.exists("/opt/airflow/dags") else os.path.join(os.path.dirname(os.path.abspath(__file__)), "reports"))
         os.makedirs(report_dir, exist_ok=True)
 
         sns.set_theme(style="darkgrid")
@@ -171,7 +172,7 @@ def model_evaluation_dashboard():
     # ==========================================
     @task
     def generate_html_dashboard(eval_data, chart_info):
-        report_dir = "/opt/airflow/dags/reports"
+        report_dir = os.path.join(base_dir, "reports") if "base_dir" in locals() else ("/opt/airflow/dags/reports" if os.path.exists("/opt/airflow/dags") else os.path.join(os.path.dirname(os.path.abspath(__file__)), "reports"))
         os.makedirs(report_dir, exist_ok=True)
         html_path = os.path.join(report_dir, "dashboard.html")
         index_path = os.path.join(report_dir, "index.html")
@@ -1173,7 +1174,7 @@ def model_evaluation_dashboard():
         <div class="container flex items-center justify-between">
             <div class="nav-tabs">
                 <button class="nav-tab-btn active" id="tabNavBenchmark" onclick="switchDashboardTab('benchmark')">
-                    <span>📊</span> BÁO CÁO BENCHMARK 13 DATASETS
+                    <span>📊</span> BÁO CÁO BENCHMARK {datasets_count} DATASETS
                 </button>
                 <button class="nav-tab-btn" id="tabNavScanner" onclick="switchDashboardTab('scanner')">
                     <span>🔬</span> KIỂM ĐỊNH MÃ ĐỘC THỜI GIAN THỰC
@@ -1236,7 +1237,7 @@ def model_evaluation_dashboard():
                             <span>📊</span> SO SÁNH ĐA CHỈ SỐ (MULTI-METRIC ANALYSIS)
                         </h3>
                         <p style="font-size: 11px; color: var(--text-muted); margin-top: 2px;" id="chartSubtitle">
-                            Đang xem: So sánh F1-Score trên 13 tập dữ liệu
+                            Đang xem: So sánh F1-Score trên {datasets_count} tập dữ liệu
                         </p>
                     </div>
 
@@ -1290,7 +1291,7 @@ def model_evaluation_dashboard():
                 <div class="flex items-center justify-between mb-2">
                     <div>
                         <h3 style="font-size: 15px; font-weight: 700;">🎯 Radar Đa Trục Hiệu Năng</h3>
-                        <p style="font-size: 11px; color: var(--text-muted);" id="radarSubtitle">Trung bình toàn bộ 13 Datasets</p>
+                        <p style="font-size: 11px; color: var(--text-muted);" id="radarSubtitle">Trung bình toàn bộ {datasets_count} Datasets</p>
                     </div>
                     <button class="btn btn-secondary" onclick="resetRadarChart()" style="font-size: 11px; padding: 4px 8px;" id="resetRadarBtn">
                         🔄 Toàn mạng
@@ -1395,13 +1396,22 @@ def model_evaluation_dashboard():
                 <div class="sample-chips" onclick="event.stopPropagation()">
                     <span style="font-size: 11px; color: var(--text-muted); align-self: center;">Mẫu thử nghiệm nhanh:</span>
                     <button class="sample-btn" onclick="testPresetSample('revosetup.exe')">
-                        📁 Mẫu PE: revosetup.exe
+                        📁 PE Chuẩn: revosetup.exe
                     </button>
-                    <button class="sample-btn" onclick="testCleanTextSample()">
-                        📄 Mẫu: Text Lành tính (Benign Doc)
+                    <button class="sample-btn" onclick="testPresetSample('packed_suspicious_stub.exe')" style="color: #fda4af;">
+                        ⚠️ PE Đóng gói: packed_stub.exe
                     </button>
-                    <button class="sample-btn" onclick="testHighEntropySample()">
-                        ⚠️ Mẫu: Encrypted / High Entropy
+                    <button class="sample-btn" onclick="testPresetSample('clean_report.pdf')">
+                        📄 PDF Lành tính: clean_report.pdf
+                    </button>
+                    <button class="sample-btn" onclick="testPresetSample('suspicious_js_sample.pdf')" style="color: #fcd34d;">
+                        ⚡ PDF Script: suspicious_js.pdf
+                    </button>
+                    <button class="sample-btn" onclick="testPresetSample('benign_admin_script.ps1')">
+                        📜 PS Script: benign_admin.ps1
+                    </button>
+                    <button class="sample-btn" onclick="testPresetSample('obfuscated_sample.ps1')" style="color: #fda4af;">
+                        🚨 Script Ẩn mã: obfuscated.ps1
                     </button>
                 </div>
             </div>
@@ -1808,7 +1818,7 @@ def model_evaluation_dashboard():
                     btn.classList.remove('active');
                 }}
             }});
-            document.getElementById('chartSubtitle').textContent = `Đang xem: So sánh chỉ số ${{metric}} trên toàn bộ 13 tập dữ liệu`;
+            document.getElementById('chartSubtitle').textContent = `Đang xem: So sánh chỉ số ${{metric}} trên toàn bộ {datasets_count} tập dữ liệu`;
             renderCrossDatasetView();
         }}
 
@@ -1914,7 +1924,7 @@ def model_evaluation_dashboard():
 
         function resetRadarChart() {{
             radarChart.data.datasets = defaultRadarDatasets;
-            document.getElementById('radarSubtitle').textContent = 'Trung bình toàn bộ 13 Datasets';
+            document.getElementById('radarSubtitle').textContent = 'Trung bình toàn bộ {datasets_count} Datasets';
             radarChart.update();
         }}
 
@@ -2170,7 +2180,8 @@ def model_evaluation_dashboard():
             const isOffice = nameLower.endsWith('.docx') || nameLower.endsWith('.xlsx') || nameLower.endsWith('.pptx');
             const isArchive = nameLower.endsWith('.zip') || nameLower.endsWith('.rar') || nameLower.endsWith('.7z') || nameLower.endsWith('.tar') || nameLower.endsWith('.gz');
             const isMedia = nameLower.endsWith('.png') || nameLower.endsWith('.jpg') || nameLower.endsWith('.jpeg') || nameLower.endsWith('.mp4') || nameLower.endsWith('.mp3');
-            const isNaturalCompressed = isPdf || isOffice || isArchive || isMedia;
+            const isIso = nameLower.endsWith('.iso') || nameLower.endsWith('.img') || nameLower.endsWith('.dmg') || nameLower.endsWith('.vhd');
+            const isNaturalCompressed = isPdf || isOffice || isArchive || isMedia || isIso;
 
             let fileTypeDetected = "Tệp nhị phân / Kịch bản";
             if (isPe) fileTypeDetected = "Windows PE Executable";
@@ -2178,11 +2189,14 @@ def model_evaluation_dashboard():
             else if (isOffice) fileTypeDetected = "Tài liệu Văn phòng (MS Office)";
             else if (isArchive) fileTypeDetected = "Tệp nén lưu trữ (Archive)";
             else if (isMedia) fileTypeDetected = "Tệp Đa phương tiện / Media";
+            else if (isIso) fileTypeDetected = "Tệp ảnh đĩa hệ điều hành (Disk Image / ISO)";
 
             let hasMaliciousPattern = false;
             let detectedPatternName = "";
+            const sampleSlice = bytes.slice(0, Math.min(bytes.length, 500000));
+            const textSample = new TextDecoder('latin1').decode(sampleSlice).toLowerCase();
+
             if (!isPe) {{
-                const textSample = new TextDecoder('latin1').decode(bytes.slice(0, Math.min(bytes.length, 500000))).toLowerCase();
                 if (isPdf) {{
                     if (textSample.includes('/launch')) {{
                         hasMaliciousPattern = true;
@@ -2195,16 +2209,18 @@ def model_evaluation_dashboard():
                     hasMaliciousPattern = true;
                     detectedPatternName = "Mã độc thực thi script/macro tự động";
                 }}
+            }}
+
             // Nhận diện bộ cài đặt và chữ ký số
             const isInstaller = isPe && (
                 file.size > 15 * 1024 * 1024 ||
-                ['install', 'setup', 'installer', 'update', 'patch', 'pycharm', 'riot', 'league', 'revo'].some(k => nameLower.includes(k)) ||
+                ['install', 'setup', 'installer', 'update', 'patch', 'pycharm', 'riot', 'league', 'revo', 'obsidian', 'electron', 'steam', 'discord'].some(k => nameLower.includes(k)) ||
                 textSample.includes('nullsoftinst') || textSample.includes('inno setup') || textSample.includes('7-zip')
             );
 
             let hasDigitalSig = false;
             let sigPublisher = "";
-            const trustedPubs = ['jetbrains', 'riot games', 'microsoft', 'google', 'valve', 'adobe', 'apple', 'oracle', 'digicert', 'sectigo', 'vs revo group', 'docker'];
+            const trustedPubs = ['jetbrains', 'riot games', 'microsoft', 'google', 'valve', 'adobe', 'apple', 'oracle', 'digicert', 'sectigo', 'vs revo group', 'docker', 'dynalist', 'obsidian'];
             for (const pub of trustedPubs) {{
                 if (textSample.includes(pub)) {{
                     hasDigitalSig = true;

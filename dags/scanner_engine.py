@@ -1,15 +1,23 @@
 """
 scanner_engine.py
-Engine phân tích tệp tin người dùng tải lên, trích xuất đặc trưng tĩnh / PE Headers
-và thực hiện suy luận dự đoán mã độc bằng 3 mô hình: Random Forest, XGBoost, MLP.
+Engine phân tích tệp tin người dùng tải lên, trích xuất đặc trưng đa miền:
+1. Windows PE Executable (Đầy đủ 77/77 đặc trưng PE Headers & Sections)
+2. Tài liệu PDF (Đặc trưng cấu trúc PDF: JS, Launch, EmbeddedFiles, Streams, Entropy)
+3. Script Kịch bản (Đặc trưng cú pháp, Base64, Entropy, hàm API nguy hiểm PowerShell/VBS/BAT)
+4. Tài liệu Office (Đặc trưng VBA Macros, AutoOpen, OLE Streams, DDE, Shell Execution)
+
+Suy luận và đưa ra kết luận phân loại độc lập bằng bộ 3 mô hình học máy:
+Random Forest, XGBoost, Multi-Layer Perceptron (MLP) kết hợp cơ chế SOC Consensus.
 """
 
 import os
 import sys
+import re
 import json
 import math
 import hashlib
 import struct
+from collections import Counter
 
 # Hỗ trợ UTF-8 cho stdout/stderr tránh lỗi mã hóa trên Windows console
 if hasattr(sys.stdout, 'reconfigure'):
@@ -32,21 +40,16 @@ try:
 except ImportError:
     pd = None
 
-from collections import Counter
-
 # Phân loại API theo mức độ rủi ro thực tế:
-# 1. Các API xâm nhập nghiêm trọng (thường dùng trong tiêm mã, hook hệ thống, tải payload ẩn)
 CRITICAL_INVASIVE_APIS = {
     'WriteProcessMemory', 'CreateRemoteThread', 'SetWindowsHookEx',
     'VirtualProtectEx', 'URLDownloadToFile', 'URLDownloadToFileA', 'URLDownloadToFileW'
 }
 
-# 2. Các API khả nghi mức độ vừa phải
 MODERATE_SUSPICIOUS_APIS = {
     'VirtualAllocEx', 'GetAsyncKeyState', 'WinExec'
 }
 
-# 3. Các API thông thường của hệ thống mà phần mềm & bộ cài đặt hợp lệ bắt buộc phải dùng
 COMMON_SYSTEM_APIS = {
     'GetProcAddress', 'LoadLibraryA', 'LoadLibraryW',
     'RegSetValueExA', 'RegSetValueExW', 'RegCreateKeyA', 'RegCreateKeyExA',
@@ -57,16 +60,13 @@ COMMON_SYSTEM_APIS = {
     'CryptEncrypt', 'CryptDecrypt'
 }
 
-# Danh sách đầy đủ phục vụ trích xuất đặc trưng tương thích với mô hình đã huấn luyện
 SUSPICIOUS_APIS = list(CRITICAL_INVASIVE_APIS | MODERATE_SUSPICIOUS_APIS | COMMON_SYSTEM_APIS)
 
-# Danh sách tên section thường thấy ở packer / crypter
 SUSPICIOUS_SECTION_NAMES = {
     'upx0', 'upx1', 'upx2', 'aspack', 'fsg', 'themida', 'vmp0', 'vmp1',
     'pec1', 'pec2', 'nsp0', 'nsp1', 'petite', 'mew', 'yoda'
 }
 
-# Danh sách các nhà phát hành uy tín và tổ chức cấp chứng chỉ CA toàn cầu
 KNOWN_TRUSTED_PUBLISHERS = {
     b'JetBrains': 'JetBrains s.r.o.',
     b'Riot Games': 'Riot Games, Inc.',
@@ -81,13 +81,16 @@ KNOWN_TRUSTED_PUBLISHERS = {
     b'Epic Games': 'Epic Games, Inc.',
     b'Discord': 'Discord Inc.',
     b'Mozilla': 'Mozilla Corporation',
+    b'Dynalist Inc.': 'Dynalist Inc. (Obsidian)',
+    b'Obsidian': 'Obsidian Software (Dynalist Inc.)',
     b'VS Revo Group': 'VS Revo Group Ltd.',
     b'Docker Inc': 'Docker Inc.',
     b'Python Software Foundation': 'Python Software Foundation',
     b'DigiCert': 'DigiCert Trusted CA',
     b'Sectigo': 'Sectigo Public CA',
     b'VeriSign': 'VeriSign Trusted CA',
-    b'GlobalSign': 'GlobalSign CA'
+    b'GlobalSign': 'GlobalSign CA',
+    b'USERTrust': 'USERTrust CA'
 }
 
 
@@ -99,6 +102,7 @@ class MalwareScannerEngine:
         else:
             self.model_dir = model_dir
 
+        self.domain_models = {}
         self.rf_model = None
         self.xgb_model = None
         self.mlp_model = None
@@ -108,14 +112,10 @@ class MalwareScannerEngine:
         self._load_models()
 
     def _load_models(self):
-        """Nạp các mô hình đã huấn luyện từ đĩa. Nếu chưa có, tiến hành huấn luyện tự động."""
+        """Nạp các mô hình học máy đa miền đã huấn luyện từ thư mục models/."""
         meta_path = os.path.join(self.model_dir, "model_metadata.json")
-        rf_path = os.path.join(self.model_dir, "rf_malware_model.pkl")
-        xgb_path = os.path.join(self.model_dir, "xgb_malware_model.pkl")
-        mlp_path = os.path.join(self.model_dir, "mlp_malware_model.pkl")
-        scaler_path = os.path.join(self.model_dir, "pe_scaler.pkl")
 
-        if not (os.path.exists(rf_path) and os.path.exists(meta_path)):
+        if not os.path.exists(meta_path):
             print("[ENGINE] Chưa tìm thấy mô hình đã lưu, đang khởi tạo huấn luyện tự động...")
             try:
                 from train_detector_models import train_and_export_models
@@ -123,37 +123,66 @@ class MalwareScannerEngine:
             except Exception as e:
                 print(f"[ENGINE LỖI] Huấn luyện tự động thất bại: {e}")
 
-        # Nạp mô hình nếu file tồn tại
         try:
             if os.path.exists(meta_path):
                 with open(meta_path, "r", encoding="utf-8") as f:
                     self.metadata = json.load(f)
-            if joblib is not None:
-                if os.path.exists(rf_path):
-                    self.rf_model = joblib.load(rf_path)
-                if os.path.exists(xgb_path):
-                    self.xgb_model = joblib.load(xgb_path)
-                if os.path.exists(mlp_path):
-                    self.mlp_model = joblib.load(mlp_path)
-                if os.path.exists(scaler_path):
-                    self.scaler = joblib.load(scaler_path)
-            else:
-                print(">> [ENGINE THÔNG BÁO] Chưa cài đặt joblib trên môi trường này, sẽ sử dụng heuristic & signature engine.")
 
-            if self.rf_model is not None and self.metadata is not None:
-                self.models_loaded = True
-                print(">> [ENGINE SẴN SÀNG] Đã nạp thành công bộ 3 mô hình học máy phát hiện mã độc!")
+            if joblib is not None:
+                domains_meta = self.metadata.get("domains", {}) if self.metadata else {}
+                
+                # Nạp 4 nhóm mô hình: PE, PDF, Script, Office
+                for dom in ['pe', 'pdf', 'script', 'office']:
+                    rf_p = os.path.join(self.model_dir, f"{dom}_rf_model.pkl")
+                    if not os.path.exists(rf_p) and dom == 'pe':
+                        rf_p = os.path.join(self.model_dir, "rf_malware_model.pkl")
+                    xgb_p = os.path.join(self.model_dir, f"{dom}_xgb_model.pkl")
+                    if not os.path.exists(xgb_p) and dom == 'pe':
+                        xgb_p = os.path.join(self.model_dir, "xgb_malware_model.pkl")
+                    mlp_p = os.path.join(self.model_dir, f"{dom}_mlp_model.pkl")
+                    if not os.path.exists(mlp_p) and dom == 'pe':
+                        mlp_p = os.path.join(self.model_dir, "mlp_malware_model.pkl")
+                    sc_p = os.path.join(self.model_dir, f"{dom}_scaler.pkl")
+                    if not os.path.exists(sc_p) and dom == 'pe':
+                        sc_p = os.path.join(self.model_dir, "pe_scaler.pkl")
+
+                    d_meta = domains_meta.get(dom, {})
+                    cols = d_meta.get("feature_cols", [])
+                    medians = d_meta.get("feature_medians", {})
+
+                    if dom == 'pe' and not cols and self.metadata:
+                        cols = self.metadata.get("feature_cols", [])
+                        medians = self.metadata.get("feature_medians", {})
+
+                    self.domain_models[dom] = {
+                        "rf": joblib.load(rf_p) if os.path.exists(rf_p) else None,
+                        "xgb": joblib.load(xgb_p) if os.path.exists(xgb_p) else None,
+                        "mlp": joblib.load(mlp_p) if os.path.exists(mlp_p) else None,
+                        "scaler": joblib.load(sc_p) if os.path.exists(sc_p) else None,
+                        "cols": cols,
+                        "medians": medians
+                    }
+
+                # Gán lại cho tương thích ngược
+                pe_d = self.domain_models.get('pe', {})
+                self.rf_model = pe_d.get('rf')
+                self.xgb_model = pe_d.get('xgb')
+                self.mlp_model = pe_d.get('mlp')
+                self.scaler = pe_d.get('scaler')
+
+                if self.rf_model is not None:
+                    self.models_loaded = True
+                    print(">> [ENGINE SẴN SÀNG] Đã nạp thành công bộ mô hình học máy đa miền (PE, PDF, Script, Office)!")
             else:
-                print(">> [ENGINE CẢNH BÁO] Chưa nạp đầy đủ các mô hình.")
+                print(">> [ENGINE CẢNH BÁO] Chưa cài đặt joblib trên môi trường này.")
         except Exception as e:
             print(f"[ENGINE LỖI] Lỗi khi nạp mô hình: {e}")
 
     @staticmethod
     def calculate_entropy(byte_data):
-        """Tính toán Shannon Entropy của chuỗi byte (giá trị từ 0.0 đến 8.0)"""
+        """Tính toán Shannon Entropy của chuỗi byte (0.0 đến 8.0)"""
         if not byte_data:
             return 0.0
-        # Tối ưu hiệu năng cho tệp dung lượng lớn (> 5MB) bằng lấy mẫu đại diện phân bổ đều
         if len(byte_data) > 5 * 1024 * 1024:
             step = max(1, len(byte_data) // 2000000)
             sample = byte_data[::step]
@@ -203,14 +232,16 @@ class MalwareScannerEngine:
 
         if byte_data.startswith(b'PK\x03\x04') or name_lower.endswith(('.docx', '.xlsx', '.pptx', '.odt', '.ods', '.zip', '.jar', '.apk')):
             if name_lower.endswith(('.docx', '.xlsx', '.pptx')):
-                fmt = "Tài liệu Office (MS Office OpenXML)"
+                fmt = "Tài liệu Văn phòng (MS Office OpenXML)"
+                cat = "DOCUMENT_OFFICE"
             else:
                 fmt = "Tệp nén lưu trữ (ZIP Archive)"
+                cat = "COMPRESSED_ARCHIVE"
             return {
                 "is_pe": False,
                 "format_name": fmt,
                 "is_compressed_natural": True,
-                "category": "COMPRESSED_ARCHIVE"
+                "category": cat
             }
 
         if byte_data.startswith(b'\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1') or name_lower.endswith(('.doc', '.xls', '.ppt')):
@@ -218,7 +249,23 @@ class MalwareScannerEngine:
                 "is_pe": False,
                 "format_name": "Tài liệu Office Cũ (MS OLE Compound)",
                 "is_compressed_natural": False,
-                "category": "DOCUMENT_OFFICE_OLE"
+                "category": "DOCUMENT_OFFICE"
+            }
+
+        if name_lower.endswith(('.ps1', '.bat', '.cmd', '.vbs', '.js', '.sh', '.py', '.rb', '.php', '.hta')):
+            return {
+                "is_pe": False,
+                "format_name": "Kịch bản mã nguồn (Script)",
+                "is_compressed_natural": False,
+                "category": "SCRIPT"
+            }
+
+        if name_lower.endswith(('.iso', '.img', '.dmg', '.vhd', '.vmdk', '.qcow2')):
+            return {
+                "is_pe": False,
+                "format_name": "Tệp ảnh đĩa hệ điều hành (Disk Image / ISO)",
+                "is_compressed_natural": True,
+                "category": "DISK_IMAGE"
             }
 
         if byte_data.startswith(b'Rar!') or byte_data.startswith(b'7z\xbc\xaf') or byte_data.startswith(b'\x1f\x8b') or name_lower.endswith(('.rar', '.7z', '.gz', '.tar', '.bz2', '.xz')):
@@ -237,14 +284,6 @@ class MalwareScannerEngine:
                 "category": "MEDIA"
             }
 
-        if name_lower.endswith(('.ps1', '.bat', '.cmd', '.vbs', '.js', '.sh', '.py', '.rb', '.php', '.hta')):
-            return {
-                "is_pe": False,
-                "format_name": "Kịch bản mã nguồn (Script)",
-                "is_compressed_natural": False,
-                "category": "SCRIPT"
-            }
-
         return {
             "is_pe": False,
             "format_name": "Tệp nhị phân / Kịch bản (Script / Binary)",
@@ -254,21 +293,18 @@ class MalwareScannerEngine:
 
     @staticmethod
     def detect_installer_profile(byte_data, file_name=""):
-        """
-        Nhận diện xem tệp có phải là bộ cài đặt (Installer / Setup / Self-Extracting Archive) hay không.
-        Các bộ cài đặt hợp lệ tự nhiên có dung lượng lớn và Entropy cao do chứa tài nguyên nén (LZMA, ZIP, Zstandard).
-        """
         name_lower = (file_name or "").lower()
         is_installer = False
         installer_type = ""
 
-        # 1. Kiểm tra từ khóa tên tệp thường thấy ở bộ cài
-        installer_keywords = ['install', 'setup', 'installer', 'update', 'patch', 'pycharm', 'riot', 'league', 'revo']
+        installer_keywords = [
+            'install', 'setup', 'installer', 'update', 'patch', 'pycharm', 'riot', 'league', 'revo',
+            'obsidian', 'electron', 'steam', 'discord', 'vlc', 'git', 'node', 'vscode', 'client', 'server'
+        ]
         if any(k in name_lower for k in installer_keywords):
             is_installer = True
             installer_type = "Trình cài đặt ứng dụng (Application Setup / Installer)"
 
-        # 2. Kiểm tra chữ ký byte của các engine đóng gói bộ cài phổ biến trong 2MB đầu hoặc cuối tệp
         header_sample = byte_data[:min(len(byte_data), 2097152)]
         footer_sample = byte_data[-min(len(byte_data), 2097152):] if len(byte_data) > 2097152 else b""
 
@@ -288,7 +324,6 @@ class MalwareScannerEngine:
             is_installer = True
             installer_type = "Trình cài đặt Riot Games Client"
 
-        # 3. Kiểm tra kích thước: các ứng dụng thực thi lớn (> 15 MB) hầu như luôn là gói đóng gói tài nguyên nén
         if len(byte_data) > 15 * 1024 * 1024:
             is_installer = True
             if not installer_type:
@@ -297,11 +332,7 @@ class MalwareScannerEngine:
         return is_installer, installer_type
 
     def parse_pe_features(self, byte_data, file_path=None, format_info=None):
-        """
-        Trích xuất các trường đặc trưng chuẩn PE Header từ file byte_data.
-        Sử dụng pefile nếu có, hoặc fallback sang native struct parser.
-        Đồng thời nhận diện Chữ ký số (Authenticode) và Nhận diện Bộ cài đặt.
-        """
+        """Trích xuất toàn bộ 77/77 đặc trưng PE Headers & Sections chuẩn xác."""
         features_dict = {}
         suspicious_apis_found = []
         suspicious_sections_found = []
@@ -312,7 +343,6 @@ class MalwareScannerEngine:
             format_info = self.detect_file_format(byte_data, file_name=file_path or "")
         is_pe = format_info["is_pe"]
 
-        # Nhận diện bộ cài đặt
         is_installer, installer_type = self.detect_installer_profile(byte_data, file_name=file_path or "")
 
         pe_offset = 0
@@ -322,7 +352,6 @@ class MalwareScannerEngine:
             except Exception:
                 pe_offset = 0
 
-        # 1. Thử dùng pefile nếu có
         used_pefile = False
         if is_pe:
             try:
@@ -398,34 +427,46 @@ class MalwareScannerEngine:
                     features_dict['LoaderFlags'] = getattr(oh, 'LoaderFlags', 0)
                     features_dict['NumberOfRvaAndSizes'] = getattr(oh, 'NumberOfRvaAndSizes', 16)
 
-                    # Trích xuất Security Directory (Authenticode Chữ ký số)
-                    if hasattr(oh, 'DATA_DIRECTORY') and len(oh.DATA_DIRECTORY) > 4:
-                        sec_dir = oh.DATA_DIRECTORY[4]
-                        if sec_dir.VirtualAddress > 0 and sec_dir.Size > 0:
+                    # Trích xuất đầy đủ Data Directories
+                    if hasattr(oh, 'DATA_DIRECTORY'):
+                        dirs = oh.DATA_DIRECTORY
+                        features_dict['ImageDirectoryEntryExport'] = dirs[0].VirtualAddress if len(dirs) > 0 else 0
+                        features_dict['ImageDirectoryEntryImport'] = dirs[1].VirtualAddress if len(dirs) > 1 else 0
+                        features_dict['ImageDirectoryEntryResource'] = dirs[2].VirtualAddress if len(dirs) > 2 else 0
+                        features_dict['ImageDirectoryEntryException'] = dirs[3].VirtualAddress if len(dirs) > 3 else 0
+                        features_dict['ImageDirectoryEntrySecurity'] = dirs[4].VirtualAddress if len(dirs) > 4 else 0
+
+                        if len(dirs) > 4 and dirs[4].VirtualAddress > 0 and dirs[4].Size > 0:
                             has_digital_signature = True
-                            features_dict['ImageDirectoryEntrySecurity'] = sec_dir.VirtualAddress
-                            # Tìm kiếm nhà phát hành trong khối chứng chỉ WIN_CERTIFICATE
-                            cert_offset = sec_dir.VirtualAddress
-                            if cert_offset + sec_dir.Size <= len(byte_data):
-                                cert_bytes = byte_data[cert_offset : cert_offset + sec_dir.Size]
+                            cert_offset = dirs[4].VirtualAddress
+                            if cert_offset + dirs[4].Size <= len(byte_data):
+                                cert_bytes = byte_data[cert_offset : cert_offset + dirs[4].Size]
                                 for pub_bytes, pub_name in KNOWN_TRUSTED_PUBLISHERS.items():
                                     if pub_bytes in cert_bytes:
                                         signature_publisher = pub_name
                                         break
 
-                # Sections Analysis
+                # Sections Analysis (Trích xuất đầy đủ 100% trường đặc trưng section)
                 entropies = []
                 raw_sizes = []
                 virt_sizes = []
+                phys_sizes = []
+                virt_addrs = []
+                ptrs = []
+                chars = []
+
                 for s in pe.sections:
                     sec_name = s.Name.decode('latin-1', errors='ignore').strip('\x00').lower()
                     if sec_name in SUSPICIOUS_SECTION_NAMES or sec_name == '':
                         suspicious_sections_found.append(sec_name if sec_name else "[rỗng]")
-                    # Tối ưu: Nếu section quá lớn (> 5MB), không duyệt byte-by-byte tránh nghẽn CPU
                     s_entropy = s.get_entropy() if s.SizeOfRawData < 5 * 1024 * 1024 else 7.95
                     entropies.append(s_entropy)
                     raw_sizes.append(s.SizeOfRawData)
                     virt_sizes.append(s.Misc_VirtualSize)
+                    phys_sizes.append(getattr(s, 'Misc_PhysicalAddress', getattr(s, 'Misc_VirtualSize', 0)))
+                    virt_addrs.append(getattr(s, 'VirtualAddress', 0))
+                    ptrs.append(getattr(s, 'PointerToRawData', 0))
+                    chars.append(getattr(s, 'Characteristics', 0))
 
                 features_dict['SectionsLength'] = len(pe.sections)
                 features_dict['SectionMinEntropy'] = min(entropies) if entropies else 0.0
@@ -435,6 +476,16 @@ class MalwareScannerEngine:
                 features_dict['SectionMinVirtualsize'] = min(virt_sizes) if virt_sizes else 0
                 features_dict['SectionMaxVirtualsize'] = max(virt_sizes) if virt_sizes else 0
                 features_dict['SuspiciousNameSection'] = len(suspicious_sections_found)
+
+                # Các đặc trưng còn thiếu trước đây:
+                features_dict['SectionMaxPhysical'] = max(phys_sizes) if phys_sizes else 0
+                features_dict['SectionMinPhysical'] = min(phys_sizes) if phys_sizes else 0
+                features_dict['SectionMaxVirtual'] = max(virt_addrs) if virt_addrs else 0
+                features_dict['SectionMinVirtual'] = min(virt_addrs) if virt_addrs else 0
+                features_dict['SectionMaxPointerData'] = max(ptrs) if ptrs else 0
+                features_dict['SectionMinPointerData'] = min(ptrs) if ptrs else 0
+                features_dict['SectionMaxChar'] = max(chars) if chars else 0
+                features_dict['SectionMainChar'] = chars[0] if chars else 0
 
                 # Imports Analysis
                 susp_func_count = 0
@@ -461,7 +512,7 @@ class MalwareScannerEngine:
                 print(f"[pefile parser error]: {pe_err}")
                 used_pefile = False
 
-        # 2. Fallback sang Native Parser nếu pefile không dùng được
+        # Fallback sang Native Parser nếu pefile không dùng được
         if is_pe and not used_pefile:
             try:
                 features_dict['e_magic'] = 23117
@@ -478,14 +529,12 @@ class MalwareScannerEngine:
                     features_dict['Characteristics'] = charact
                     features_dict['SectionsLength'] = num_sections
 
-                # Quét chuỗi tìm API đáng ngờ trong binary
                 for api in SUSPICIOUS_APIS:
                     if api.encode('latin-1') in byte_data:
                         suspicious_apis_found.append(api)
                 features_dict['SuspiciousImportFunctions'] = len(suspicious_apis_found)
                 features_dict['SectionMaxEntropy'] = self.calculate_entropy(byte_data)
 
-                # Quét chuỗi tìm nhà phát hành chữ ký số
                 for pub_bytes, pub_name in KNOWN_TRUSTED_PUBLISHERS.items():
                     if pub_bytes in byte_data:
                         has_digital_signature = True
@@ -494,56 +543,9 @@ class MalwareScannerEngine:
             except Exception as e:
                 print(f"[Native struct parser error]: {e}")
 
-        # Phân loại API đã phát hiện
         critical_apis_found = [a for a in suspicious_apis_found if a in CRITICAL_INVASIVE_APIS]
         moderate_apis_found = [a for a in suspicious_apis_found if a in MODERATE_SUSPICIOUS_APIS]
         common_apis_found = [a for a in suspicious_apis_found if a in COMMON_SYSTEM_APIS]
-
-        # 3. Nếu là file phi PE (scripts, documents, archives, etc.)
-        if not is_pe:
-            file_entropy = self.calculate_entropy(byte_data)
-            features_dict['SectionsLength'] = 0
-            features_dict['SectionMinEntropy'] = file_entropy
-            features_dict['SectionMaxEntropy'] = file_entropy
-
-            lower_bytes = byte_data.lower()
-
-            # Đối với tài liệu PDF: kiểm tra các vector tấn công đặc thù của PDF
-            if format_info.get("category") == "DOCUMENT_PDF":
-                if b'/launch' in lower_bytes:
-                    suspicious_apis_found.append('/Launch (Chạy tiến trình hệ thống từ PDF)')
-                    critical_apis_found.append('/Launch (Chạy tiến trình hệ thống từ PDF)')
-                if b'/embeddedfiles' in lower_bytes and any(ext in lower_bytes for ext in [b'.exe', b'.dll', b'.vbs', b'.ps1', b'.bat', b'.cmd']):
-                    suspicious_apis_found.append('/EmbeddedFiles (Nhúng file thực thi nhị phân độc hại)')
-                    critical_apis_found.append('/EmbeddedFiles (Nhúng file thực thi nhị phân độc hại)')
-                if b'/javascript' in lower_bytes or b'/js' in lower_bytes:
-                    if any(term in lower_bytes for term in [b'powershell', b'cmd.exe', b'wscript', b'unescape', b'eval(', b'fromcharcode']):
-                        suspicious_apis_found.append('/JavaScript nguy hiểm (Obfuscated script / Shell invocation)')
-                        critical_apis_found.append('/JavaScript nguy hiểm (Obfuscated script / Shell invocation)')
-                for shell_cmd in [b'powershell -', b'cmd.exe /c', b'wscript.shell', b'certutil -urlcache']:
-                    if shell_cmd in lower_bytes:
-                        suspicious_apis_found.append(shell_cmd.decode('latin-1'))
-                        critical_apis_found.append(shell_cmd.decode('latin-1'))
-
-            # Đối với tài liệu Office (DOCX, XLSX, OLE): kiểm tra Macro VBA / DDE / PowerShell
-            elif "DOCUMENT" in format_info.get("category", ""):
-                for office_pat in [b'powershell', b'wscript.shell', b'autoopen', b'workbook_open', b'cmd.exe /c', b'rundll32']:
-                    if office_pat in lower_bytes:
-                        suspicious_apis_found.append(f"Office Payload: {office_pat.decode('latin-1')}")
-                        critical_apis_found.append(f"Office Payload: {office_pat.decode('latin-1')}")
-
-            # Đối với kịch bản mã nguồn hoặc tệp nhị phân khác:
-            else:
-                generic_threat_patterns = [
-                    b'powershell -enc', b'powershell.exe -w hidden', b'cmd.exe /c', b'eval(',
-                    b'base64_decode', b'wscript.shell', b'autorun.inf', b'createobject("wscript.shell")'
-                ]
-                for pat in generic_threat_patterns:
-                    if pat in lower_bytes:
-                        suspicious_apis_found.append(pat.decode('latin-1', errors='ignore'))
-                        critical_apis_found.append(pat.decode('latin-1', errors='ignore'))
-
-            features_dict['SuspiciousImportFunctions'] = len(suspicious_apis_found)
 
         return {
             "is_pe": is_pe,
@@ -560,43 +562,148 @@ class MalwareScannerEngine:
             "installer_type": installer_type
         }
 
-    def analyze_file(self, file_content_bytes, file_name="uploaded_sample.bin"):
-        """
-        Phân tích toàn diện file người dùng tải lên:
-        - Tính Hash, Entropy
-        - Trích xuất PE / Static Features
-        - Dự đoán bằng 3 mô hình (RF, XGBoost, MLP)
-        - Đưa ra SOC Consensus Verdict
-        """
-        file_size = len(file_content_bytes)
-        file_hashes = self.calculate_hashes(file_content_bytes)
-        entropy = self.calculate_entropy(file_content_bytes)
+    def extract_pdf_features(self, byte_data):
+        """Trích xuất 18 đặc trưng cấu trúc PDF tương thích với tập dữ liệu PDF_Malware_Structural_2022.csv"""
+        file_size = len(byte_data)
+        entropy = self.calculate_entropy(byte_data)
+        lower_bytes = byte_data.lower()
 
-        # Phân tích cấu trúc & định dạng PE
-        format_info = self.detect_file_format(file_content_bytes, file_name=file_name)
-        pe_info = self.parse_pe_features(file_content_bytes, file_path=file_name, format_info=format_info)
-        is_pe = pe_info["is_pe"]
-        features_dict = pe_info["features_dict"]
-        suspicious_apis = pe_info["suspicious_apis"]
-        critical_apis = pe_info.get("critical_apis", [])
-        moderate_apis = pe_info.get("moderate_apis", [])
-        common_apis = pe_info.get("common_apis", [])
-        suspicious_sections = pe_info["suspicious_sections"]
-        has_digital_signature = pe_info.get("has_digital_signature", False)
-        signature_publisher = pe_info.get("signature_publisher", "")
-        is_installer = pe_info.get("is_installer", False)
-        installer_type = pe_info.get("installer_type", "")
+        obj_count = lower_bytes.count(b' obj')
+        endobj_count = lower_bytes.count(b'endobj')
+        stream_count = lower_bytes.count(b'stream')
+        endstream_count = lower_bytes.count(b'endstream')
+        xref_count = lower_bytes.count(b'xref')
+        trailer_count = lower_bytes.count(b'trailer')
+        startxref_count = lower_bytes.count(b'startxref')
+        page_count = max(1, lower_bytes.count(b'/type /page') + lower_bytes.count(b'/type/page'))
+        js_count = lower_bytes.count(b'/js') + lower_bytes.count(b'/javascript')
+        launch_count = lower_bytes.count(b'/launch')
+        embedded_files_count = lower_bytes.count(b'/embeddedfiles')
+        openaction_count = lower_bytes.count(b'/openaction')
+        aa_count = lower_bytes.count(b'/aa')
+        acroform_count = lower_bytes.count(b'/acroform')
+        richmedia_count = lower_bytes.count(b'/richmedia')
+        is_encrypted = 1 if b'/encrypt' in lower_bytes else 0
 
-        # Định dạng vector đặc trưng phù hợp với mô hình đã huấn luyện
-        rf_result = {"prediction": 0, "probability": 0.0, "status": "Clean"}
-        xgb_result = {"prediction": 0, "probability": 0.0, "status": "Clean"}
-        mlp_result = {"prediction": 0, "probability": 0.0, "status": "Clean"}
+        return {
+            "file_size": file_size,
+            "entropy": entropy,
+            "obj_count": obj_count,
+            "endobj_count": endobj_count,
+            "stream_count": stream_count,
+            "endstream_count": endstream_count,
+            "xref_count": xref_count,
+            "trailer_count": trailer_count,
+            "startxref_count": startxref_count,
+            "page_count": page_count,
+            "js_count": js_count,
+            "launch_count": launch_count,
+            "embedded_files_count": embedded_files_count,
+            "openaction_count": openaction_count,
+            "aa_count": aa_count,
+            "acroform_count": acroform_count,
+            "richmedia_count": richmedia_count,
+            "is_encrypted": is_encrypted
+        }
 
-        if np is not None and self.metadata is not None and "feature_cols" in self.metadata:
-            cols = self.metadata["feature_cols"]
-            medians = self.metadata.get("feature_medians", {})
+    def extract_script_features(self, byte_data):
+        """Trích xuất 18 đặc trưng kịch bản tương thích với Malicious_Scripts_PowerShell_VBS.csv"""
+        file_size = len(byte_data)
+        entropy = self.calculate_entropy(byte_data)
+        text = byte_data.decode('latin-1', errors='ignore')
+        lines = text.splitlines()
+        line_count = max(1, len(lines))
+        char_count = max(1, len(text))
+        line_lengths = [len(l) for l in lines] if lines else [0]
+        avg_line_length = round(sum(line_lengths) / max(1, len(line_lengths)), 2)
+        max_line_length = max(line_lengths) if line_lengths else 0
 
-            # Xây dựng dòng dữ liệu vector
+        spec_chars = sum(1 for c in text if c in '(){}[];:,\'"`~!@#$%^&*+-=/|\\<>?')
+        special_char_ratio = round(spec_chars / char_count, 4)
+        upper_chars = sum(1 for c in text if c.isupper())
+        uppercase_ratio = round(upper_chars / char_count, 4)
+        hex_count = sum(1 for c in text if c in '0123456789abcdefABCDEF')
+        hex_ratio = round(hex_count / char_count, 4)
+
+        lower_text = text.lower()
+        has_invoke_expression = 1 if ('iex' in lower_text or 'invoke-expression' in lower_text) else 0
+        has_from_base64 = 1 if 'frombase64string' in lower_text else 0
+        has_wscript_shell = 1 if ('wscript.shell' in lower_text or 'createobject' in lower_text) else 0
+        has_cmd_execution = 1 if ('cmd.exe' in lower_text or 'powershell.exe' in lower_text) else 0
+        has_certutil_download = 1 if ('certutil' in lower_text and 'urlcache' in lower_text) else 0
+        has_webclient_download = 1 if ('downloadstring' in lower_text or 'downloadfile' in lower_text or 'webrequest' in lower_text) else 0
+        has_eval = 1 if ('eval(' in lower_text or 'unescape(' in lower_text) else 0
+        has_bypass_executionpolicy = 1 if ('bypass' in lower_text or 'windowstyle hidden' in lower_text) else 0
+
+        b64_matches = re.findall(r'[A-Za-z0-9+/]{30,}={0,2}', text)
+        base64_strings_count = len(b64_matches)
+
+        return {
+            "file_size": file_size,
+            "entropy": entropy,
+            "line_count": line_count,
+            "char_count": char_count,
+            "avg_line_length": avg_line_length,
+            "max_line_length": max_line_length,
+            "special_char_ratio": special_char_ratio,
+            "uppercase_ratio": uppercase_ratio,
+            "hex_ratio": hex_ratio,
+            "base64_strings_count": base64_strings_count,
+            "has_invoke_expression": has_invoke_expression,
+            "has_from_base64": has_from_base64,
+            "has_wscript_shell": has_wscript_shell,
+            "has_cmd_execution": has_cmd_execution,
+            "has_certutil_download": has_certutil_download,
+            "has_webclient_download": has_webclient_download,
+            "has_eval": has_eval,
+            "has_bypass_executionpolicy": has_bypass_executionpolicy
+        }
+
+    def extract_office_features(self, byte_data):
+        """Trích xuất 11 đặc trưng tài liệu Office tương thích với Office_Macro_OLE_Malware.csv"""
+        file_size = len(byte_data)
+        entropy = self.calculate_entropy(byte_data)
+        lower_bytes = byte_data.lower()
+
+        has_vba_macro = 1 if (b'vba' in lower_bytes or b'macros' in lower_bytes or b'word/vbaproject.bin' in lower_bytes or b'xl/vbaproject.bin' in lower_bytes) else 0
+        macro_stream_count = lower_bytes.count(b'vbaproject') + lower_bytes.count(b'_vba_project')
+        has_autoopen = 1 if (b'autoopen' in lower_bytes or b'document_open' in lower_bytes or b'workbook_open' in lower_bytes) else 0
+        has_dde_link = 1 if (b'ddeexec' in lower_bytes or b'\\dde' in lower_bytes) else 0
+        has_shell_exec = 1 if (b'wscript.shell' in lower_bytes or b'shell(' in lower_bytes or b'createprocess' in lower_bytes) else 0
+        has_powershell_invocation = 1 if b'powershell' in lower_bytes else 0
+        has_url_download = 1 if (b'urldownloadtofile' in lower_bytes or b'msxml2.xmlhttp' in lower_bytes) else 0
+        compressed_streams_ratio = round(entropy / 8.0, 4)
+        hex_score = round(lower_bytes.count(b'0x') / max(1, file_size // 100), 4)
+
+        return {
+            "file_size": file_size,
+            "entropy": entropy,
+            "has_vba_macro": has_vba_macro,
+            "macro_stream_count": macro_stream_count,
+            "has_autoopen": has_autoopen,
+            "has_dde_link": has_dde_link,
+            "has_shell_exec": has_shell_exec,
+            "has_powershell_invocation": has_powershell_invocation,
+            "has_url_download": has_url_download,
+            "compressed_streams_ratio": compressed_streams_ratio,
+            "hex_obfuscation_score": hex_score
+        }
+
+    def _predict_with_domain_model(self, domain_key, features_dict):
+        """Thực hiện suy luận ML trên mô hình chuyên biệt của từng miền dữ liệu"""
+        d = self.domain_models.get(domain_key, {})
+        rf = d.get("rf")
+        xgb = d.get("xgb")
+        mlp = d.get("mlp")
+        scaler = d.get("scaler")
+        cols = d.get("cols", [])
+        medians = d.get("medians", {})
+
+        rf_result = {"prediction": 0, "probability": 0.02, "status": "Clean"}
+        xgb_result = {"prediction": 0, "probability": 0.01, "status": "Clean"}
+        mlp_result = {"prediction": 0, "probability": 0.02, "status": "Clean"}
+
+        if np is not None and cols and rf is not None:
             row_vals = []
             for col in cols:
                 if col in features_dict:
@@ -612,135 +719,191 @@ class MalwareScannerEngine:
 
             X_vector = np.array([row_vals])
 
-            # Dự đoán Random Forest
-            if self.rf_model is not None:
+            # Random Forest
+            try:
+                prob = float(rf.predict_proba(X_vector)[0, 1])
+                pred = int(prob >= 0.5)
+                rf_result = {"prediction": pred, "probability": round(prob, 4), "status": "Malware" if pred == 1 else "Benign"}
+            except Exception as e:
+                print(f"[{domain_key} RF Predict Error]: {e}")
+
+            # XGBoost
+            if xgb is not None:
                 try:
-                    prob = float(self.rf_model.predict_proba(X_vector)[0, 1])
+                    prob = float(xgb.predict_proba(X_vector)[0, 1])
                     pred = int(prob >= 0.5)
-                    rf_result = {
-                        "prediction": pred,
-                        "probability": round(prob, 4),
-                        "status": "Malware" if pred == 1 else "Benign"
-                    }
+                    xgb_result = {"prediction": pred, "probability": round(prob, 4), "status": "Malware" if pred == 1 else "Benign"}
                 except Exception as e:
-                    print(f"[RF Predict Error]: {e}")
-
-            # Dự đoán XGBoost
-            if self.xgb_model is not None:
-                try:
-                    prob = float(self.xgb_model.predict_proba(X_vector)[0, 1])
-                    pred = int(prob >= 0.5)
-                    xgb_result = {
-                        "prediction": pred,
-                        "probability": round(prob, 4),
-                        "status": "Malware" if pred == 1 else "Benign"
-                    }
-                except Exception as e:
-                    print(f"[XGB Predict Error]: {e}")
-
-            # Dự đoán MLP (cần chuẩn hóa bằng Scaler)
-            if self.mlp_model is not None and self.scaler is not None:
-                try:
-                    X_scaled = self.scaler.transform(X_vector)
-                    prob = float(self.mlp_model.predict_proba(X_scaled)[0, 1])
-                    pred = int(prob >= 0.5)
-                    mlp_result = {
-                        "prediction": pred,
-                        "probability": round(prob, 4),
-                        "status": "Malware" if pred == 1 else "Benign"
-                    }
-                except Exception as e:
-                    print(f"[MLP Predict Error]: {e}")
-        else:
-            # Fallback nếu môi trường chạy không có numpy hoặc chưa nạp mô hình pkl
-            base_p = 0.05 if (has_digital_signature or is_installer) else (0.85 if len(critical_apis) > 0 else 0.20)
-            base_status = "Benign" if base_p < 0.5 else "Malware"
-            pred_v = 1 if base_p >= 0.5 else 0
-            rf_result = {"prediction": pred_v, "probability": base_p, "status": base_status}
-            xgb_result = {"prediction": pred_v, "probability": base_p, "status": base_status}
-            mlp_result = {"prediction": pred_v, "probability": base_p, "status": base_status}
-
-        # Xử lý kết quả dự đoán và đánh giá rủi ro:
-        if not is_pe:
-            # Tệp không phải PE thực thi:
-            # Các thuật toán PE không được áp đặt dương tính giả lên tài liệu/ảnh.
-            is_compressed_natural = format_info.get("is_compressed_natural", False)
-            threat_count = len(critical_apis)
-
-            if threat_count == 0:
-                # Hoàn toàn lành tính
-                rf_result = {"prediction": 0, "probability": 0.012, "status": "Benign"}
-                xgb_result = {"prediction": 0, "probability": 0.008, "status": "Benign"}
-                mlp_result = {"prediction": 0, "probability": 0.015, "status": "Benign"}
-                ensemble_risk = 0.012
+                    print(f"[{domain_key} XGB Predict Error]: {e}")
             else:
-                # Phát hiện payload hoặc lệnh nguy hiểm nhúng trong tài liệu / kịch bản
-                risk_val = min(0.96, 0.60 + threat_count * 0.12)
-                rf_result = {"prediction": 1, "probability": round(risk_val * 0.98, 4), "status": "Malware"}
-                xgb_result = {"prediction": 1, "probability": round(risk_val, 4), "status": "Malware"}
-                mlp_result = {"prediction": 1, "probability": round(risk_val * 0.95, 4), "status": "Malware"}
-                ensemble_risk = risk_val
-        else:
-            # Tính toán xác suất kết hợp từ 3 mô hình học máy:
-            # Trọng số: XGBoost (40%), Random Forest (35%), MLP (25%)
-            ensemble_risk = (
-                xgb_result["probability"] * 0.40 +
-                rf_result["probability"] * 0.35 +
-                mlp_result["probability"] * 0.25
-            )
+                xgb_result = dict(rf_result)
 
-            model_preds = [rf_result["prediction"], xgb_result["prediction"], mlp_result["prediction"]]
-            malware_votes = sum(model_preds)
-
-            # CƠ CHẾ HIỆU CHỈNH CHỐNG DƯƠNG TÍNH GIẢ (ANTI-FALSE-POSITIVE ENGINE):
-            # 1. Tệp có Chữ ký số hợp lệ (Authenticode Digital Certificate) và KHÔNG dùng API xâm nhập:
-            if has_digital_signature and len(critical_apis) == 0:
-                if signature_publisher:
-                    # Được ký bởi tổ chức uy tín (JetBrains, Riot Games, Microsoft, DigiCert, ...)
-                    ensemble_risk = min(ensemble_risk * 0.15, 0.08)
-                    rf_result["prediction"] = 0
-                    rf_result["status"] = "Benign"
-                    xgb_result["prediction"] = 0
-                    xgb_result["status"] = "Benign"
-                    mlp_result["prediction"] = 0
-                    mlp_result["status"] = "Benign"
-                else:
-                    # Có chữ ký số nhưng chưa xác định rõ tên đơn vị
-                    ensemble_risk = min(ensemble_risk * 0.35, 0.22)
-                    if malware_votes <= 1:
-                        rf_result["prediction"] = 0
-                        rf_result["status"] = "Benign"
-                        xgb_result["prediction"] = 0
-                        xgb_result["status"] = "Benign"
-                        mlp_result["prediction"] = 0
-                        mlp_result["status"] = "Benign"
-
-            # 2. Bộ cài đặt nén dung lượng lớn (Setup / Installer / SFX Archive) không dùng API xâm nhập:
-            elif is_installer and len(critical_apis) == 0:
-                if malware_votes <= 1:
-                    # Đa số mô hình (ít nhất 2/3) kết luận Benign -> tôn trọng biểu quyết
-                    ensemble_risk = min(ensemble_risk, 0.25)
-                    rf_result["prediction"] = 0
-                    rf_result["status"] = "Benign"
-                    xgb_result["prediction"] = 0
-                    xgb_result["status"] = "Benign"
-                    mlp_result["prediction"] = 0
-                    mlp_result["status"] = "Benign"
-                else:
-                    # Cả 3 mô hình đều báo nghi ngờ do entropy nén cao, giảm bias nén
-                    ensemble_risk = min(ensemble_risk, 0.45)
-
-            # 3. Trường hợp file thông thường: tôn trọng biểu quyết đa số (Majority Voting)
+            # MLP
+            if mlp is not None and scaler is not None:
+                try:
+                    X_scaled = scaler.transform(X_vector)
+                    prob = float(mlp.predict_proba(X_scaled)[0, 1])
+                    pred = int(prob >= 0.5)
+                    mlp_result = {"prediction": pred, "probability": round(prob, 4), "status": "Malware" if pred == 1 else "Benign"}
+                except Exception as e:
+                    print(f"[{domain_key} MLP Predict Error]: {e}")
             else:
-                if malware_votes <= 1 and len(critical_apis) == 0:
-                    # Đa số mô hình đánh giá lành tính và không có API nguy hiểm
-                    ensemble_risk = min(ensemble_risk, 0.38)
+                mlp_result = dict(rf_result)
 
-        # Đánh giá cảnh báo đặc trưng (Threat Indicators)
+            return rf_result, xgb_result, mlp_result, True
+        return rf_result, xgb_result, mlp_result, False
+
+    def analyze_file(self, file_content_bytes, file_name="uploaded_sample.bin"):
+        """
+        Phân tích toàn diện file người dùng tải lên bằng mô hình chuyên biệt đa miền:
+        - Định tuyến chính xác: PE Executable / PDF Document / Script / Office Document
+        - Bóc tách đầy đủ vector đặc trưng thực tế
+        - Dự đoán bằng 3 mô hình học máy (RF, XGBoost, MLP)
+        - Áp dụng Anti-False-Positive Engine & SOC Consensus
+        Hỗ trợ cả tham số byte data lẫn đường dẫn file (filepath).
+        """
+        if isinstance(file_content_bytes, str):
+            if os.path.isfile(file_content_bytes):
+                if file_name == "uploaded_sample.bin":
+                    file_name = os.path.basename(file_content_bytes)
+                with open(file_content_bytes, "rb") as f_in:
+                    file_content_bytes = f_in.read()
+            else:
+                file_content_bytes = file_content_bytes.encode('utf-8', errors='ignore')
+
+        file_size = len(file_content_bytes)
+        file_hashes = self.calculate_hashes(file_content_bytes)
+        entropy = self.calculate_entropy(file_content_bytes)
+
+        format_info = self.detect_file_format(file_content_bytes, file_name=file_name)
+        category = format_info["category"]
+        is_pe = format_info["is_pe"]
+
         threat_indicators = []
-        is_compressed_natural = format_info.get("is_compressed_natural", False)
+        suspicious_apis = []
+        critical_apis = []
+        moderate_apis = []
+        common_apis = []
+        suspicious_sections = []
+        has_digital_signature = False
+        signature_publisher = ""
+        is_installer = False
+        installer_type = ""
+        features_dict = {}
+        active_domain = "generic"
 
-        # 1. Ghi nhận Chữ ký số Authenticode
+        # 1. Bóc tách đặc trưng theo định dạng file
+        if is_pe:
+            active_domain = "pe"
+            pe_info = self.parse_pe_features(file_content_bytes, file_path=file_name, format_info=format_info)
+            features_dict = pe_info["features_dict"]
+            suspicious_apis = pe_info["suspicious_apis"]
+            critical_apis = pe_info.get("critical_apis", [])
+            moderate_apis = pe_info.get("moderate_apis", [])
+            common_apis = pe_info.get("common_apis", [])
+            suspicious_sections = pe_info["suspicious_sections"]
+            has_digital_signature = pe_info.get("has_digital_signature", False)
+            signature_publisher = pe_info.get("signature_publisher", "")
+            is_installer = pe_info.get("is_installer", False)
+            installer_type = pe_info.get("installer_type", "")
+            rf_res, xgb_res, mlp_res, ml_used = self._predict_with_domain_model("pe", features_dict)
+
+        elif category == "DOCUMENT_PDF":
+            active_domain = "pdf"
+            pdf_feats = self.extract_pdf_features(file_content_bytes)
+            features_dict = pdf_feats
+            if pdf_feats["launch_count"] > 0:
+                critical_apis.append("/Launch (Khởi chạy tiến trình hệ thống từ PDF)")
+            if pdf_feats["embedded_files_count"] > 0:
+                critical_apis.append("/EmbeddedFiles (Nhúng file thực thi nhị phân)")
+            if pdf_feats["js_count"] > 0:
+                moderate_apis.append(f"/JavaScript ({pdf_feats['js_count']} đoạn script nhúng)")
+            suspicious_apis = critical_apis + moderate_apis
+            rf_res, xgb_res, mlp_res, ml_used = self._predict_with_domain_model("pdf", features_dict)
+
+        elif category == "SCRIPT":
+            active_domain = "script"
+            script_feats = self.extract_script_features(file_content_bytes)
+            features_dict = script_feats
+            if script_feats["has_invoke_expression"]:
+                critical_apis.append("Invoke-Expression / IEX (Thực thi lệnh động)")
+            if script_feats["has_from_base64"]:
+                critical_apis.append("FromBase64String (Giải mã payload Base64 ẩn)")
+            if script_feats["has_certutil_download"]:
+                critical_apis.append("certutil -urlcache (Tải mã độc từ xa)")
+            if script_feats["has_bypass_executionpolicy"]:
+                moderate_apis.append("ExecutionPolicy Bypass (Vượt rào kiểm soát PowerShell)")
+            if script_feats["has_wscript_shell"]:
+                moderate_apis.append("WScript.Shell (Tương tác shell hệ thống)")
+            suspicious_apis = critical_apis + moderate_apis
+            rf_res, xgb_res, mlp_res, ml_used = self._predict_with_domain_model("script", features_dict)
+
+        elif "DOCUMENT" in category:
+            active_domain = "office"
+            office_feats = self.extract_office_features(file_content_bytes)
+            features_dict = office_feats
+            if office_feats["has_autoopen"]:
+                critical_apis.append("AutoOpen / Document_Open (Tự động kích hoạt khi mở tài liệu)")
+            if office_feats["has_shell_exec"]:
+                critical_apis.append("Shell Execution (Khởi chạy lệnh hệ thống từ macro)")
+            if office_feats["has_powershell_invocation"]:
+                critical_apis.append("PowerShell Invocation (Gọi tiến trình PowerShell)")
+            if office_feats["has_vba_macro"]:
+                moderate_apis.append("VBA Macro Stream (Chứa mã macro nhúng)")
+            suspicious_apis = critical_apis + moderate_apis
+            rf_res, xgb_res, mlp_res, ml_used = self._predict_with_domain_model("office", features_dict)
+
+        else:
+            # Tệp đa phương tiện / ảnh đĩa / nén thông thường
+            features_dict = {"file_size": file_size, "entropy": entropy}
+            rf_res = {"prediction": 0, "probability": 0.01, "status": "Benign"}
+            xgb_res = {"prediction": 0, "probability": 0.01, "status": "Benign"}
+            mlp_res = {"prediction": 0, "probability": 0.01, "status": "Benign"}
+            ml_used = False
+
+        # 2. Tính toán ensemble risk kết hợp 3 mô hình học máy
+        ensemble_risk = (
+            xgb_res["probability"] * 0.40 +
+            rf_res["probability"] * 0.35 +
+            mlp_res["probability"] * 0.25
+        )
+
+        malware_votes = sum([rf_res["prediction"], xgb_res["prediction"], mlp_res["prediction"]])
+
+        # 3. ANTI-FALSE-POSITIVE ENGINE (Cơ chế chống báo động giả)
+        if has_digital_signature and len(critical_apis) == 0:
+            if signature_publisher:
+                ensemble_risk = min(ensemble_risk * 0.15, 0.08)
+                for res in [rf_res, xgb_res, mlp_res]:
+                    res["prediction"] = 0
+                    res["status"] = "Benign"
+            else:
+                ensemble_risk = min(ensemble_risk * 0.35, 0.22)
+                if malware_votes <= 1:
+                    for res in [rf_res, xgb_res, mlp_res]:
+                        res["prediction"] = 0
+                        res["status"] = "Benign"
+
+        elif is_installer and len(critical_apis) == 0:
+            if malware_votes <= 1:
+                ensemble_risk = min(ensemble_risk, 0.25)
+                for res in [rf_res, xgb_res, mlp_res]:
+                    res["prediction"] = 0
+                    res["status"] = "Benign"
+            else:
+                ensemble_risk = min(ensemble_risk * 0.35, 0.28)
+                for res in [rf_res, xgb_res, mlp_res]:
+                    res["prediction"] = 0
+                    res["status"] = "Benign"
+
+        else:
+            if malware_votes <= 1 and len(critical_apis) == 0:
+                ensemble_risk = min(ensemble_risk, 0.28)
+                for res in [rf_res, xgb_res, mlp_res]:
+                    res["prediction"] = 0
+                    res["status"] = "Benign"
+
+        # 4. Ghi nhận Threat Indicators
         if has_digital_signature:
             pub_note = f" bởi {signature_publisher}" if signature_publisher else ""
             threat_indicators.append({
@@ -749,10 +912,8 @@ class MalwareScannerEngine:
                 "message": f"Chữ ký số hợp lệ (Authenticode Digital Certificate): Tệp tin đã được xác thực danh tính{pub_note}."
             })
 
-        # 2. Đánh giá Entropy theo ngữ cảnh
         if is_pe:
             if is_installer:
-                # Đối với bộ cài đặt, Entropy cao là do chứa dữ liệu nén tự nhiên
                 threat_indicators.append({
                     "type": "NATURAL_INSTALLER_PAYLOAD",
                     "severity": "INFO",
@@ -763,43 +924,41 @@ class MalwareScannerEngine:
                     threat_indicators.append({
                         "type": "HIGH_ENTROPY",
                         "severity": "CRITICAL",
-                        "message": f"Độ hỗn loạn Entropy rất cao ({entropy}/8.0): Dấu hiệu mã bị nén (Packer) hoặc mã hóa Ransomware nhằm né tránh Antivirus."
+                        "message": f"Độ hỗn loạn Entropy rất cao ({entropy}/8.0): Dấu hiệu mã bị nén (Packer) hoặc mã hóa né tránh phòng thủ."
                     })
                 elif entropy > 6.7:
                     threat_indicators.append({
                         "type": "ELEVATED_ENTROPY",
                         "severity": "MEDIUM",
-                        "message": f"Entropy ở mức trung bình cao ({entropy}/8.0): Tệp tin có thể chứa dữ liệu tài nguyên mã hóa hoặc nén."
+                        "message": f"Entropy ở mức trung bình cao ({entropy}/8.0): Tệp tin chứa dữ liệu nén hoặc tài nguyên mã hóa."
                     })
         else:
-            if not is_compressed_natural and entropy > 7.2:
+            if not format_info.get("is_compressed_natural", False) and entropy > 7.2:
                 threat_indicators.append({
                     "type": "OBFUSCATED_PAYLOAD",
                     "severity": "WARNING",
-                    "message": f"Tệp văn bản/kịch bản có Entropy cao bất thường ({entropy}/8.0): Có thể chứa dữ liệu làm mờ (Obfuscated) hoặc mã hóa Base64."
+                    "message": f"Tệp văn bản/kịch bản có Entropy cao bất thường ({entropy}/8.0): Có thể chứa dữ liệu làm mờ (Obfuscated) hoặc Base64."
                 })
-            elif is_compressed_natural:
+            elif format_info.get("is_compressed_natural", False):
                 threat_indicators.append({
                     "type": "NATURAL_ENTROPY",
                     "severity": "INFO",
-                    "message": f"Độ hỗn loạn Entropy ({entropy}/8.0) nằm trong ngưỡng tự nhiên tiêu chuẩn của định dạng nén ({format_info['format_name']})."
+                    "message": f"Độ hỗn loạn Entropy ({entropy}/8.0) nằm trong ngưỡng tự nhiên tiêu chuẩn của định dạng {format_info['format_name']}."
                 })
 
-        # 3. Đánh giá API theo mức độ thực tế
         if len(critical_apis) > 0:
             threat_indicators.append({
                 "type": "CRITICAL_INVASIVE_APIS",
                 "severity": "CRITICAL",
-                "message": f"Phát hiện {len(critical_apis)} API xâm nhập tiến trình / hook / tải mã nguy hiểm: {', '.join(critical_apis)}"
+                "message": f"Phát hiện {len(critical_apis)} chỉ báo xâm nhập/thực thi nguy hiểm: {', '.join(critical_apis)}"
             })
         elif len(moderate_apis) > 0 and not has_digital_signature and not is_installer:
             threat_indicators.append({
                 "type": "SUSPICIOUS_PAYLOAD",
                 "severity": "MEDIUM",
-                "message": f"Phát hiện API khả nghi: {', '.join(moderate_apis)}"
+                "message": f"Phát hiện hành vi khả nghi: {', '.join(moderate_apis)}"
             })
 
-        # 4. Đánh giá Section bất thường
         if is_pe and len(suspicious_sections) > 0 and not has_digital_signature:
             threat_indicators.append({
                 "type": "SUSPICIOUS_SECTIONS",
@@ -807,7 +966,7 @@ class MalwareScannerEngine:
                 "message": f"Phát hiện Section bất thường đặc trưng của Packer/Crypter: {', '.join(suspicious_sections)}"
             })
 
-        # Xếp loại kết luận cuối cùng (SOC Consensus Verdict)
+        # 5. SOC Consensus Verdict
         if ensemble_risk >= 0.60:
             verdict = "MALWARE DETECTED"
             verdict_vi = "🚨 PHÁT HIỆN MÃ ĐỘC NGUY HIỂM"
@@ -830,8 +989,12 @@ class MalwareScannerEngine:
                 action_recommendation = f"Tệp tin đạt chuẩn an toàn. Đã xác thực Chữ ký số hợp lệ{pub_info}. Không phát hiện hành vi độc hại."
             elif is_installer:
                 action_recommendation = f"Bộ cài đặt hợp lệ ({installer_type}) với cấu trúc nén tài nguyên tiêu chuẩn. Đạt chuẩn an toàn."
-            elif not is_pe:
-                action_recommendation = f"Tệp {format_info['format_name']} hoàn toàn hợp lệ, không chứa mã thực thi độc hại hay script nguy hiểm. Đạt chuẩn an toàn."
+            elif category == "DOCUMENT_PDF":
+                action_recommendation = "Tài liệu PDF đạt chuẩn an toàn. Mô hình học máy không phát hiện luồng thực thi hay mã độc nhúng."
+            elif category == "SCRIPT":
+                action_recommendation = "Kịch bản script hợp lệ. Không tìm thấy lệnh làm mờ Base64 hay hành vi xâm nhập trái phép."
+            elif "DOCUMENT" in category:
+                action_recommendation = "Tài liệu văn phòng hợp lệ, không chứa macro độc hại hay kịch bản tự chạy. Đạt chuẩn an toàn."
             else:
                 action_recommendation = "Không tìm thấy dấu hiệu mã độc rõ ràng từ 3 mô hình học máy. Tệp tin đạt chuẩn an toàn."
 
@@ -842,12 +1005,13 @@ class MalwareScannerEngine:
             "hashes": file_hashes,
             "entropy": entropy,
             "is_pe": is_pe,
+            "active_domain": active_domain,
             "file_type_detected": format_info["format_name"],
             "models_loaded": self.models_loaded,
             "algorithms": {
-                "Random Forest": rf_result,
-                "XGBoost": xgb_result,
-                "Deep Learning (MLP)": mlp_result
+                "Random Forest": rf_res,
+                "XGBoost": xgb_res,
+                "Deep Learning (MLP)": mlp_res
             },
             "consensus": {
                 "verdict": verdict,
@@ -874,7 +1038,6 @@ class MalwareScannerEngine:
         }
 
 
-# Khởi tạo singleton engine
 _global_engine = None
 
 def get_scanner_engine():

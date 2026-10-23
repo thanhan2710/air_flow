@@ -1,0 +1,24 @@
+﻿Dataset,Thuật_Toán,Accuracy,Precision,F1_Score,FPR,ROC_AUC
+APA_DDoS_Traffic.csv,Random Forest,1.0,1.0,1.0,0.0,1.0
+Android_Malware_Syscalls.csv,Random Forest,1.0,1.0,1.0,0.0,1.0
+C2_Malicious_Domains.csv,Random Forest,0.982,0.9821,0.982,0.027,0.9985
+CIC_MalMem2022_Obfuscated.csv,Random Forest,0.9987,0.9987,0.9987,0.0007,1.0
+ClaMP_Integrated_PE_Malware.csv,Random Forest,0.9894,0.9894,0.9894,0.01,0.9989
+ClaMP_Raw_PE_Malware.csv,Random Forest,0.9803,0.9805,0.9803,0.0281,0.9989
+Malicious_Scripts_PowerShell_VBS.csv,Random Forest,1.0,1.0,1.0,0.0,1.0
+Mobile_Smishing_Threats.csv,Random Forest,0.8943,0.8989,0.8957,0.0958,0.9633
+NSL_KDD_Network_Intrusion.csv,Random Forest,0.9943,0.9941,0.994,0.0006,0.95
+Office_Macro_OLE_Malware.csv,Random Forest,1.0,1.0,1.0,0.0,1.0
+PDF_Malware_Structural_2022.csv,Random Forest,1.0,1.0,1.0,0.0,1.0
+PE_Header_MalwareData.csv,Random Forest,0.99,0.99,0.99,0.0086,0.9991
+Phishing_Legitimate_URLs.csv,Random Forest,0.9797,0.9797,0.9797,0.025,0.9988
+Phishing_Websites_Detection.csv,Random Forest,0.9453,0.9456,0.9453,0.0646,0.9884
+Ransomware_Family_Behavior_Unified.csv,Random Forest,0.9994,0.9994,0.9994,0.0,0.9985
+Ransomware_Multiclass_Dataset.csv,Random Forest,0.9097,0.9722,0.9397,0.0131,0.9935
+Ransomware_PE_Headers.csv,Random Forest,0.9745,0.9751,0.9746,0.0396,0.9968
+SQL_Injection_Payloads.csv,Random Forest,0.91,0.9173,0.9074,0.0106,0.9429
+TUANDROMD_Android_Malware.csv,Random Forest,0.9877,0.988,0.9878,0.0111,0.9988
+XSS_Attack_Vectors.csv,Random Forest,0.9931,0.9933,0.9931,0.0,0.9998
+dataset_malwares.csv,Random Forest,0.9893,0.9893,0.9893,0.0328,0.9982
+drebin-215-dataset-5560malware-9476-benign.csv,Random Forest,0.9642,0.9644,0.9643,0.0252,0.9921
+final(2).csv,Random Forest,0.9707,0.9708,0.9706,0.0149,0.9948

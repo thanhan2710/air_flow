@@ -211,13 +211,49 @@ class MalwareScannerHTTPHandler(BaseHTTPRequestHandler):
             engine = get_scanner_engine()
             res = {
                 "status": "online",
-                "service": "Shield-AI Malware Scanner API",
+                "service": "Shield-AI Malware Scanner API (Multi-Domain AI Engine)",
                 "models_loaded": engine.models_loaded,
                 "supported_algorithms": ["Random Forest", "XGBoost", "Deep Learning (MLP)"],
-                "version": "2.1.0",
+                "supported_domains": ["PE Windows Executables", "PDF Documents", "Script Threats (PS/VBS/BAT)", "Office Macro Threats"],
+                "version": "3.0.0",
                 "total_scans_stored": len(history_manager.get_all_scans())
             }
             self.wfile.write(json.dumps(res, ensure_ascii=False).encode('utf-8'))
+            return
+
+        # 1.1 Lấy danh sách mẫu kiểm thử có sẵn
+        if path == "/api/samples":
+            sample_dir = os.path.join(BASE_DIR, "malware_samples")
+            sample_list = []
+            if os.path.exists(sample_dir):
+                for fn in sorted(os.listdir(sample_dir)):
+                    sp = os.path.join(sample_dir, fn)
+                    if os.path.isfile(sp):
+                        sz = os.path.getsize(sp)
+                        f_lower = fn.lower()
+                        cat = "PE Executable" if f_lower.endswith(('.exe', '.dll', '.bin')) else ("PDF Document" if f_lower.endswith('.pdf') else ("Script (PS1/BAT)" if f_lower.endswith(('.ps1', '.bat', '.cmd', '.vbs')) else "Office Document"))
+                        sample_list.append({
+                            "name": fn,
+                            "size": sz,
+                            "size_formatted": f"{sz/1024:.2f} KB" if sz < 1048576 else f"{sz/1048576:.2f} MB",
+                            "type": cat
+                        })
+            self.send_response(200)
+            self.send_header('Content-Type', 'application/json; charset=utf-8')
+            self._set_cors_headers()
+            self.end_headers()
+            self.wfile.write(json.dumps({"status": "success", "samples": sample_list}, ensure_ascii=False).encode('utf-8'))
+            return
+
+        # 1.2 Hot-reload lại các model
+        if path == "/api/reload":
+            engine = get_scanner_engine()
+            engine._load_models()
+            self.send_response(200)
+            self.send_header('Content-Type', 'application/json; charset=utf-8')
+            self._set_cors_headers()
+            self.end_headers()
+            self.wfile.write(json.dumps({"status": "success", "message": "Đã nạp nóng toàn bộ mô hình đa miền mới!"}).encode('utf-8'))
             return
 
         # 2. Lấy danh sách toàn bộ file đã quét / lịch sử
