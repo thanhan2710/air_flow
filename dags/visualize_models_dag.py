@@ -2035,13 +2035,13 @@ def model_evaluation_dashboard():
             const isPeExt = file.name.toLowerCase().endsWith('.exe') || file.name.toLowerCase().endsWith('.dll') || file.name.toLowerCase().endsWith('.sys');
             let typeLabel = 'Tệp nhị phân / Kịch bản';
             let icon = '📄';
-            if (isPeExt) {
+            if (isPeExt) {{
                 typeLabel = 'Windows PE Executable';
                 icon = '⚙️';
-            } else if (isCsv) {
+            }} else if (isCsv) {{
                 typeLabel = 'Tập dữ liệu Giám định Mã độc (CSV Dataset)';
                 icon = '📊';
-            }
+            }}
             document.getElementById('fileTypeDisplay').textContent = typeLabel;
             document.getElementById('fileIcon').textContent = icon;
 
@@ -2102,9 +2102,9 @@ def model_evaluation_dashboard():
             playScanAnimation(cleanData);
         }}
 
-                function testC2DatasetSample() {
+                function testC2DatasetSample() {{
             testPresetSample('C2_Malicious_Domains.csv');
-        }
+        }}
 
         function testHighEntropySample() {{
             const highEntropyData = {{
