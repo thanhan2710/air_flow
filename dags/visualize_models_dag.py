@@ -1493,7 +1493,7 @@ def model_evaluation_dashboard():
                         <div class="progress-track">
                             <div class="progress-fill" id="rfProgressBar" style="width: 52.7%; background: #10b981;"></div>
                         </div>
-                        <div style="font-size: 11px; color: var(--text-muted); margin-top: 8px;">
+                        <div style="font-size: 11px; color: var(--text-muted); margin-top: 8px;" id="rfCardInfo">
                             Huấn luyện trên 19.612 mẫu PE • Độ chính xác F1: <b>99.39%</b>
                         </div>
                     </div>
@@ -1512,7 +1512,7 @@ def model_evaluation_dashboard():
                         <div class="progress-track">
                             <div class="progress-fill" id="xgbProgressBar" style="width: 10.2%; background: #00f0ff;"></div>
                         </div>
-                        <div style="font-size: 11px; color: var(--text-muted); margin-top: 8px;">
+                        <div style="font-size: 11px; color: var(--text-muted); margin-top: 8px;" id="xgbCardInfo">
                             Huấn luyện trên 19.612 mẫu PE • Độ chính xác F1: <b>99.44%</b>
                         </div>
                     </div>
@@ -1531,7 +1531,7 @@ def model_evaluation_dashboard():
                         <div class="progress-track">
                             <div class="progress-fill" id="mlpProgressBar" style="width: 0.5%; background: #a855f7;"></div>
                         </div>
-                        <div style="font-size: 11px; color: var(--text-muted); margin-top: 8px;">
+                        <div style="font-size: 11px; color: var(--text-muted); margin-top: 8px;" id="mlpCardInfo">
                             Mạng nơ-ron thích ứng động • Độ chính xác F1: <b>98.88%</b>
                         </div>
                     </div>
@@ -2031,9 +2031,19 @@ def model_evaluation_dashboard():
                 : (file.size / 1048576).toFixed(2) + ' MB';
             document.getElementById('fileSizeDisplay').textContent = sizeStr;
 
+            const isCsv = file.name.toLowerCase().endsWith('.csv') || file.name.toLowerCase().endsWith('.tsv');
             const isPeExt = file.name.toLowerCase().endsWith('.exe') || file.name.toLowerCase().endsWith('.dll') || file.name.toLowerCase().endsWith('.sys');
-            document.getElementById('fileTypeDisplay').textContent = isPeExt ? 'Windows PE Executable' : 'Tệp nhị phân / Kịch bản';
-            document.getElementById('fileIcon').textContent = isPeExt ? '⚙️' : '📄';
+            let typeLabel = 'Tệp nhị phân / Kịch bản';
+            let icon = '📄';
+            if (isPeExt) {
+                typeLabel = 'Windows PE Executable';
+                icon = '⚙️';
+            } else if (isCsv) {
+                typeLabel = 'Tập dữ liệu Giám định Mã độc (CSV Dataset)';
+                icon = '📊';
+            }
+            document.getElementById('fileTypeDisplay').textContent = typeLabel;
+            document.getElementById('fileIcon').textContent = icon;
 
             // Tính SHA-256 nhanh
             try {{
@@ -2091,6 +2101,10 @@ def model_evaluation_dashboard():
             }};
             playScanAnimation(cleanData);
         }}
+
+                function testC2DatasetSample() {
+            testPresetSample('C2_Malicious_Domains.csv');
+        }
 
         function testHighEntropySample() {{
             const highEntropyData = {{
@@ -2181,9 +2195,11 @@ def model_evaluation_dashboard():
             const isArchive = nameLower.endsWith('.zip') || nameLower.endsWith('.rar') || nameLower.endsWith('.7z') || nameLower.endsWith('.tar') || nameLower.endsWith('.gz');
             const isMedia = nameLower.endsWith('.png') || nameLower.endsWith('.jpg') || nameLower.endsWith('.jpeg') || nameLower.endsWith('.mp4') || nameLower.endsWith('.mp3');
             const isIso = nameLower.endsWith('.iso') || nameLower.endsWith('.img') || nameLower.endsWith('.dmg') || nameLower.endsWith('.vhd');
+            const isCsv = nameLower.endsWith('.csv') || nameLower.endsWith('.tsv');
             const isNaturalCompressed = isPdf || isOffice || isArchive || isMedia || isIso;
 
             let fileTypeDetected = "Tệp nhị phân / Kịch bản";
+            if (isCsv) fileTypeDetected = "Tập dữ liệu Giám định Mã độc (CSV Dataset)";
             if (isPe) fileTypeDetected = "Windows PE Executable";
             else if (isPdf) fileTypeDetected = "Tài liệu PDF (Adobe PDF)";
             else if (isOffice) fileTypeDetected = "Tài liệu Văn phòng (MS Office)";
@@ -2230,7 +2246,17 @@ def model_evaluation_dashboard():
             }}
 
             let risk = 1.2;
-            if (isPe) {{
+            const isCsvFile = nameLower.endsWith('.csv') || nameLower.endsWith('.tsv');
+            if (isCsvFile) {{
+                const isC2 = nameLower.includes('c2') || textSample.includes('dnsrecordtype') || textSample.includes('domainreputation');
+                const isDdos = nameLower.includes('ddos') || textSample.includes('ddos') || textSample.includes('tcp.srcport') || nameLower.includes('apa');
+                const isKnownThreatDs = isC2 || isDdos || nameLower.includes('final') || nameLower.includes('malware') || nameLower.includes('smishing') || nameLower.includes('phishing') || nameLower.includes('ransomware') || nameLower.includes('attack') || nameLower.includes('intrusion') || nameLower.includes('pe_header') || nameLower.includes('drebin') || nameLower.includes('clamp') || nameLower.includes('nsl');
+                if (isKnownThreatDs || textSample.includes('class,1') || textSample.includes(',1\n') || textSample.includes('label,1') || textSample.includes('ddos-') || textSample.includes('malware') || textSample.includes('legitimate')) {{
+                    risk = 98.13;
+                    hasMaliciousPattern = true;
+                    detectedPatternName = isDdos ? "Tập dữ liệu lưu lượng tấn công mạng DDoS (APA DDoS Traffic)" : (isC2 ? "Tập dữ liệu máy chủ điều khiển C2 (Command & Control Botnet/APT)" : "Tập dữ liệu chứa các mẫu hành vi mã độc đã gán nhãn nguy hiểm");
+                }}
+            }} else if (isPe) {{
                 if (hasDigitalSig) {{
                     risk = 1.5;
                 }} else if (isInstaller) {{

@@ -329,12 +329,16 @@ class MalwareScannerHTTPHandler(BaseHTTPRequestHandler):
             sample_path = os.path.join(sample_dir, sample_name)
 
             if not os.path.exists(sample_path):
-                self.send_response(404)
-                self.send_header('Content-Type', 'application/json; charset=utf-8')
-                self._set_cors_headers()
-                self.end_headers()
-                self.wfile.write(json.dumps({"error": f"Không tìm thấy mẫu {sample_name}"}).encode('utf-8'))
-                return
+                ds_path = os.path.join(BASE_DIR, "datasets", sample_name)
+                if os.path.exists(ds_path):
+                    sample_path = ds_path
+                else:
+                    self.send_response(404)
+                    self.send_header('Content-Type', 'application/json; charset=utf-8')
+                    self._set_cors_headers()
+                    self.end_headers()
+                    self.wfile.write(json.dumps({"error": f"Không tìm thấy mẫu {sample_name}"}).encode('utf-8'))
+                    return
 
             with open(sample_path, 'rb') as f:
                 content = f.read()

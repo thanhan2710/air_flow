@@ -37,3 +37,4 @@ dags/stock_rf_model.pkl
 dags/.idea/
 *.swp
 *.swo
+*.bak
